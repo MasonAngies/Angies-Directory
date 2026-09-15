@@ -1,0 +1,81 @@
+# Angie's Store & Org Directory (Kintone)
+
+Kintone is the system of record for which restaurant belongs to which district, who manages it, its operational mailbox, and its Toast/7shifts IDs. This repo holds everything around that app: an idempotent schema setup, import validation, a health audit, backups, and a read-only lookup client that future tools can use.
+
+Scope is **directory only** ([docs/SPEC.md](docs/SPEC.md)). Nothing here sends email, touches invoices, or calls Microsoft Graph.
+
+## Quick start
+
+Requires Node.js 22.9+. No npm dependencies.
+
+```bash
+cp .env.example .env        # fill in the base URL, app ID, and token (never commit .env)
+npm test                    # unit tests, no network
+npm run schema:plan         # dry run: what setup would change in the app
+```
+
+| Command | What it does | Writes to Kintone? |
+|---|---|---|
+| `npm run schema:plan` | Compares the app with the spec and prints the differences | No |
+| `npm run schema:apply` | Backs up settings, applies additive changes, deploys, re-verifies | Yes (app settings) |
+| `npm run audit` | Directory health report; exit 2 = critical, 1 = errors, 0 = clean/warnings | No |
+| `npm run import:validate -- file.csv` | Checks a CSV before import (`--offline`, or `--reconcile` after import) | No |
+| `npm run backup` | Exports settings and all records to `backups/` (`--settings-only` available) | No |
+| `npm run lookup -- 11101` | Runs the lookup contract for one store | No |
+
+`backups/` and `reports/` contain directory contact data and are gitignored. Keep it that way; this repository is public.
+
+## Decisions that differ from the written spec
+
+| Topic | Spec | Built | Why |
+|---|---|---|---|
+| `Concept` | Drop-down | Multi-choice: Prime, Lobster, Chicken, Burger, Pizza | Owner decision: stores can carry more than one concept |
+| `District` | Drop-down | Single-line text, strict exact matching | Owner decision: new districts need no schema change (see [Adding a district](docs/RUNBOOK.md#adding-a-district)) |
+| Store Number format | "canonical" (undefined) | Digits only, 1-6 digits (e.g. `11101`), exact match | Owner decision; change `storeNumberPattern` in `config/directory.config.json` and the customization file together |
+| Exception views | One combined view with a missing-data column | One view per gap (`Exceptions - ...`) | Kintone views cannot mix AND with OR, and formulas cannot read Link or User fields. This is the spec's own fallback. `npm run audit` is the combined report |
+| Needs Verification | Blank or older than 90 days | `Active and Last_Verified < 90 days ago`, plus `Needs Verification - No Verifier` | Kintone treats blank dates as older, so one filter covers both (confirmed live) |
+| Help text | Under Store Number / Store Email | Small label rows beneath those fields (and District) | Kintone has no per-field help text API |
+| Governance group | May be collapsed | Expanded | Editors must fill Change Reason on every material change |
+| Permissions | Admin / editor / reader | Built and tested, **not applied** | Owner decision until Kintone user/group codes are supplied |
+
+## Configuration and secrets inventory
+
+Environment variables (names only; values live in `.env` or your secret manager):
+
+| Name | Purpose |
+|---|---|
+| `KINTONE_BASE_URL` | Kintone site origin, `https://<subdomain>.kintone.com` |
+| `KINTONE_APP_ID` | Directory app ID (dev app until production is approved) |
+| `KINTONE_API_TOKEN` | Setup/admin token: **View records** + **Manage app**. Consumers of the lookup should get a separate token with **View records** only |
+
+Committed configuration:
+
+- `config/directory.config.json`: store-number pattern, concept options, verification age (90 days), business time zone.
+- `config/permissions.json`: role membership. Set `"apply": true` only once admins/verifiers/editors/readers are filled in; entries look like `{ "type": "GROUP", "code": "store-ops" }` or `{ "type": "USER", "code": "name@company.com" }`. An entity can hold one role.
+
+Kintone limits worth knowing: the API token cannot upload JavaScript customization, and record change history is an app setting to confirm in the UI.
+
+## Using the lookup contract
+
+```js
+import { getStoreDirectoryRecord } from 'angies-store-directory/lookup';
+
+const result = await getStoreDirectoryRecord({ storeNumber: '11101', asOfDate: '2026-09-15', correlationId: 'job-123' });
+if (!result.ok) {
+  // DIRECTORY_INCOMPLETE, STORE_NOT_FOUND, ...: block and surface result.reasonCode; never guess.
+}
+```
+
+It exact-matches `Store_Number` and returns a record only when the store is Active, inside its effective dates, complete, and verified. Otherwise it returns one of the typed reason codes. It never caches, fuzzy-matches, or falls back. Stale verification (over 90 days) still returns `DIRECTORY_OK` and is reported by the audit; `lastVerified` is included so a consumer can apply a stricter policy. For tests or custom wiring use `createDirectoryLookup({ client, appId, config, logger })`.
+
+## Project layout
+
+```
+config/          directory and permission configuration
+customization/   form validation script to upload into Kintone
+docs/            SPEC.md (source of truth), RUNBOOK.md, ACCEPTANCE.md
+scripts/         CLI entry points (setup, audit, import validation, backup, lookup)
+src/             Kintone client, field contract, rules, schema plan, audit, lookup
+templates/       import CSV template (headers are the exact field codes)
+tests/           node:test suites with fictional fixtures
+```

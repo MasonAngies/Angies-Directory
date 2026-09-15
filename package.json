@@ -1,0 +1,22 @@
+{
+  "name": "angies-store-directory",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kintone Store & Org Directory: schema setup, import validation, health audit, and read-only lookup.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.9"
+  },
+  "exports": {
+    "./lookup": "./src/lookup/getStoreDirectoryRecord.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "schema:plan": "node --env-file-if-exists=.env scripts/setup-app.js",
+    "schema:apply": "node --env-file-if-exists=.env scripts/setup-app.js --apply",
+    "audit": "node --env-file-if-exists=.env scripts/audit.js",
+    "backup": "node --env-file-if-exists=.env scripts/backup.js",
+    "import:validate": "node --env-file-if-exists=.env scripts/validate-import.js",
+    "lookup": "node --env-file-if-exists=.env scripts/lookup.js"
+  }
+}

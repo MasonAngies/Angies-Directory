@@ -1,0 +1,7 @@
+{
+  "storeNumberPattern": "^[0-9]{1,6}$",
+  "storeNumberExample": "11101",
+  "concepts": ["Prime", "Lobster", "Chicken", "Burger", "Pizza"],
+  "verificationMaxAgeDays": 90,
+  "timeZone": "America/New_York"
+}
