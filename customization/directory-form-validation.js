@@ -18,13 +18,21 @@
     District_Manager_Name: 'District Manager Name',
     District_Manager_Email: 'District Manager Email'
   };
-  var EMAIL_FIELDS = ['Store_Email', 'Store_Manager_Email', 'District_Manager_Email'];
-  var TRIM_FIELDS = ['Store_Number', 'Store_Name', 'District', 'Store_Manager_Name', 'District_Manager_Name',
-    'Toast_Location_ID', 'SevenShifts_Location_ID', 'Store_Email', 'Store_Manager_Email', 'District_Manager_Email'];
+  var EMAIL_FIELDS = ['Store_Email', 'Store_Manager_Email', 'District_Manager_Email', 'Director_Email'];
+  var PHONE_FIELDS = ['Store_Manager_Phone', 'District_Manager_Phone', 'Director_Phone'];
+  var TRIM_FIELDS = ['Store_Number', 'Store_Name', 'District', 'Street_Address', 'City', 'State', 'Store_Manager_Name',
+    'District_Manager_Name', 'Director_Name', 'Toast_Location_ID', 'SevenShifts_Location_ID'].concat(EMAIL_FIELDS, PHONE_FIELDS);
   var EMAIL_PATTERN = /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$/;
 
   function isBlank(value) {
     return value === null || value === undefined || String(value).trim() === '';
+  }
+
+  // "(480) 555 0123", "4805550123" and "+1 480.555.0123" all become 480-555-0123.
+  function normalizePhone(value) {
+    var digits = String(value).replace(/\D/g, '');
+    if (digits.length === 11 && digits.charAt(0) === '1') digits = digits.slice(1);
+    return digits.length === 10 ? digits.slice(0, 3) + '-' + digits.slice(3, 6) + '-' + digits.slice(6) : value;
   }
 
   // Trims identifiers in place, then returns { fieldCode: message } for problems.
@@ -52,6 +60,17 @@
       var value = record[code] && record[code].value;
       if (!isBlank(value) && !EMAIL_PATTERN.test(value)) errors[code] = 'Enter a valid email address. Never guess an address from a name.';
     });
+
+    PHONE_FIELDS.forEach(function (code) {
+      if (!record[code] || isBlank(record[code].value)) return;
+      record[code].value = normalizePhone(record[code].value);
+      if (!/^\d{3}-\d{3}-\d{4}$/.test(record[code].value)) errors[code] = 'Enter a 10-digit phone number, e.g. 480-555-0123.';
+    });
+
+    if (record.State && !isBlank(record.State.value)) {
+      record.State.value = record.State.value.toUpperCase();
+      if (!/^[A-Z]{2}$/.test(record.State.value)) errors.State = 'Use the two-letter state code, e.g. AZ.';
+    }
 
     var start = record.Effective_Start && record.Effective_Start.value;
     var end = record.Effective_End && record.Effective_End.value;

@@ -1,4 +1,5 @@
-// Directory field contract from docs/SPEC.md section 3, in form order.
+// Directory field contract from docs/SPEC.md section 3, in form order, plus
+// fields the directory owner added on 2026-09-15 (address, phones, director).
 // Field codes are an API contract: never rename them.
 
 export const FIELDS = [
@@ -11,11 +12,19 @@ export const FIELDS = [
   // so new districts can be typed without a schema change. See rules.js.
   { code: 'District', label: 'District', type: 'SINGLE_LINE_TEXT' },
   { code: 'Record_Owner', label: 'Record Owner', type: 'USER_SELECT' },
+  { code: 'Street_Address', label: 'Street Address', type: 'SINGLE_LINE_TEXT' },
+  { code: 'City', label: 'City', type: 'SINGLE_LINE_TEXT' },
+  { code: 'State', label: 'State', type: 'SINGLE_LINE_TEXT' },
   { code: 'Store_Email', label: 'Store Email', type: 'LINK' },
   { code: 'Store_Manager_Name', label: 'Store Manager Name', type: 'SINGLE_LINE_TEXT' },
   { code: 'Store_Manager_Email', label: 'Store Manager Email', type: 'LINK' },
+  { code: 'Store_Manager_Phone', label: 'Store Manager Phone', type: 'LINK' },
   { code: 'District_Manager_Name', label: 'District Manager Name', type: 'SINGLE_LINE_TEXT' },
   { code: 'District_Manager_Email', label: 'District Manager Email', type: 'LINK' },
+  { code: 'District_Manager_Phone', label: 'District Manager Phone', type: 'LINK' },
+  { code: 'Director_Name', label: 'Director Name', type: 'SINGLE_LINE_TEXT' },
+  { code: 'Director_Email', label: 'Director Email', type: 'LINK' },
+  { code: 'Director_Phone', label: 'Director Phone', type: 'LINK' },
   { code: 'Toast_Location_ID', label: 'Toast Location ID', type: 'SINGLE_LINE_TEXT' },
   { code: 'SevenShifts_Location_ID', label: '7shifts Location ID', type: 'SINGLE_LINE_TEXT' },
   { code: 'Effective_Start', label: 'Effective Start', type: 'DATE' },
@@ -40,15 +49,20 @@ export const ACTIVE_REQUIRED = [
   'District_Manager_Email',
 ];
 export const VERIFICATION_FIELDS = ['Last_Verified', 'Verified_By'];
-export const EMAIL_FIELDS = ['Store_Email', 'Store_Manager_Email', 'District_Manager_Email'];
+export const EMAIL_FIELDS = ['Store_Email', 'Store_Manager_Email', 'District_Manager_Email', 'Director_Email'];
+// Phones are optional; when present they must use the 480-555-0123 format.
+export const PHONE_FIELDS = ['Store_Manager_Phone', 'District_Manager_Phone', 'Director_Phone'];
 export const EXTERNAL_ID_FIELDS = ['Toast_Location_ID', 'SevenShifts_Location_ID'];
 export const DATE_FIELDS = ['Effective_Start', 'Effective_End', 'Last_Verified'];
 export const USER_FIELDS = FIELDS.filter((field) => field.type === 'USER_SELECT').map((field) => field.code);
 export const MULTI_VALUE_FIELDS = FIELDS.filter((field) => field.type === 'MULTI_SELECT').map((field) => field.code);
 export const TRIMMED_TEXT_FIELDS = [
   'Store_Name',
+  'Street_Address',
+  'City',
   'Store_Manager_Name',
   'District_Manager_Name',
+  'Director_Name',
   'Toast_Location_ID',
   'SevenShifts_Location_ID',
 ];

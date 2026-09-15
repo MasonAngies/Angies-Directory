@@ -10,6 +10,7 @@ import {
   FIELD_CODES,
   FIELD_LABELS,
   MULTI_VALUE_FIELDS,
+  PHONE_FIELDS,
   STATUS_VALUES,
   TRIMMED_TEXT_FIELDS,
   USER_FIELDS,
@@ -42,6 +43,10 @@ export function isCanonicalStoreNumber(value, pattern) {
 
 export function isValidEmail(value) {
   return typeof value === 'string' && value.length <= 254 && EMAIL_PATTERN.test(value);
+}
+
+export function isValidPhone(value) {
+  return typeof value === 'string' && /^\d{3}-\d{3}-\d{4}$/.test(value);
 }
 
 export function isValidDate(value) {
@@ -128,6 +133,13 @@ export function validateRecord(record, { config, today }) {
     if (!isBlank(record[field]) && !isValidEmail(record[field])) {
       add('INVALID_EMAIL', 'error', field, `${label(field)} is not a valid email address.`);
     }
+  }
+
+  for (const field of PHONE_FIELDS) {
+    if (!isBlank(record[field]) && !isValidPhone(record[field])) add('INVALID_PHONE', 'error', field, `${label(field)} must look like 480-555-0123.`);
+  }
+  if (!isBlank(record.State) && !/^[A-Z]{2}$/.test(record.State)) {
+    add('INVALID_STATE', 'error', 'State', 'State must be a two-letter code such as AZ.');
   }
 
   for (const field of TRIMMED_TEXT_FIELDS) {
@@ -270,6 +282,34 @@ export function findCrossRecordIssues(records) {
       });
     }
   }
+  // One phone number recorded for two different people is usually a copy-paste slip.
+  const namesByPhone = new Map();
+  records.forEach((record, index) => {
+    for (const [nameField, phoneField] of [
+      ['Store_Manager_Name', 'Store_Manager_Phone'],
+      ['District_Manager_Name', 'District_Manager_Phone'],
+      ['Director_Name', 'Director_Phone'],
+    ]) {
+      const name = record[nameField]?.trim().toLowerCase();
+      const phone = record[phoneField]?.trim();
+      if (!name || !phone) continue;
+      if (!namesByPhone.has(phone)) namesByPhone.set(phone, new Map());
+      namesByPhone.get(phone).set(name, [...(namesByPhone.get(phone).get(name) ?? []), index]);
+    }
+  });
+  for (const [phone, names] of namesByPhone) {
+    if (names.size > 1) {
+      issues.push({
+        code: 'PHONE_NAME_CONFLICT',
+        severity: 'warning',
+        field: 'Phone',
+        value: phone,
+        recordIndexes: [...new Set([...names.values()].flat())],
+        message: `Phone ${phone} is recorded for ${names.size} different people.`,
+      });
+    }
+  }
+
   for (const [name, emails] of emailsByName) {
     if (emails.size > 1) {
       issues.push({

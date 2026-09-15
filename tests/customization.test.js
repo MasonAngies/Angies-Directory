@@ -74,6 +74,17 @@ test('validate trims identifiers and blocks incomplete Active records', () => {
   assert.ok(validate(record({ Store_Number: 'AB-1' })).Store_Number);
 });
 
+test('validate normalizes phones and state codes', () => {
+  const { validate } = load().exports;
+  const r = record({ Store_Manager_Phone: '(480) 555 0123', District_Manager_Phone: '+1 602.555.0199', Director_Phone: '555-0123', State: 'az' });
+  const errors = plain(validate(r));
+  assert.equal(r.Store_Manager_Phone.value, '480-555-0123');
+  assert.equal(r.District_Manager_Phone.value, '602-555-0199');
+  assert.equal(r.State.value, 'AZ');
+  assert.deepEqual(Object.keys(errors), ['Director_Phone']);
+  assert.ok(validate(record({ State: 'Arizona' })).State);
+});
+
 test('a district typed with different capitalization is rejected on submit', async () => {
   const { exports, apiCalls } = load(['Central', 'West']);
   const event = await exports.onSubmit({ record: record({ District: 'central' }) });

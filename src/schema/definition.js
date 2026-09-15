@@ -1,7 +1,7 @@
 // Desired Kintone app configuration (docs/SPEC.md sections 3-5), expressed as
 // REST API payload fragments. scripts/setup-app.js diffs this against the app.
 
-import { FIELDS, STATUS_VALUES } from '../directory/fields.js';
+import { EMAIL_FIELDS, FIELDS, PHONE_FIELDS, STATUS_VALUES } from '../directory/fields.js';
 
 const W = { third: '260', twoThirds: '536', full: '812', audit: '150' };
 
@@ -22,7 +22,8 @@ function fieldProperties(config) {
   set('Active_Status', { required: true, options: optionsFrom(STATUS_VALUES), defaultValue: 'Active' });
   set('Concept', { options: optionsFrom(config.concepts), defaultValue: [] });
   set('Record_Owner', { required: true });
-  for (const code of ['Store_Email', 'Store_Manager_Email', 'District_Manager_Email']) set(code, { protocol: 'MAIL' });
+  for (const code of EMAIL_FIELDS) set(code, { protocol: 'MAIL' });
+  for (const code of PHONE_FIELDS) set(code, { protocol: 'CALL' });
   set('Toast_Location_ID', { unique: true });
   set('SevenShifts_Location_ID', { unique: true });
   return base;
@@ -64,15 +65,17 @@ export function buildLayout() {
       help('Store_Number'),
       row(cell('MULTI_SELECT', 'Concept', W.third), cell('SINGLE_LINE_TEXT', 'District', W.third), cell('USER_SELECT', 'Record_Owner', W.third)),
       row({ type: 'SPACER', elementId: '', size: { width: W.third } }, label('District')),
+      row(cell('SINGLE_LINE_TEXT', 'Street_Address', W.third), cell('SINGLE_LINE_TEXT', 'City', W.third), cell('SINGLE_LINE_TEXT', 'State', W.third)),
     ),
     group(
       'Group_Store_Contacts',
       row(cell('LINK', 'Store_Email', W.third), cell('SINGLE_LINE_TEXT', 'Store_Manager_Name', W.third), cell('LINK', 'Store_Manager_Email', W.third)),
-      help('Store_Email'),
+      row(label('Store_Email'), cell('LINK', 'Store_Manager_Phone', W.third)),
     ),
     group(
       'Group_District_Leadership',
-      row(cell('SINGLE_LINE_TEXT', 'District_Manager_Name', W.third), cell('LINK', 'District_Manager_Email', W.third)),
+      row(cell('SINGLE_LINE_TEXT', 'District_Manager_Name', W.third), cell('LINK', 'District_Manager_Email', W.third), cell('LINK', 'District_Manager_Phone', W.third)),
+      row(cell('SINGLE_LINE_TEXT', 'Director_Name', W.third), cell('LINK', 'Director_Email', W.third), cell('LINK', 'Director_Phone', W.third)),
     ),
     group(
       'Group_External_Systems',
@@ -115,7 +118,13 @@ export function buildViews() {
   const list = [
     {
       name: 'Active Directory',
-      fields: ['Store_Number', 'Store_Name', 'District', 'Store_Email', 'Store_Manager_Name', 'Store_Manager_Email', 'District_Manager_Name', 'District_Manager_Email', 'Last_Verified'],
+      fields: ['Store_Number', 'Store_Name', 'District', 'Store_Email', 'Store_Manager_Name', 'Store_Manager_Email', 'Store_Manager_Phone', 'District_Manager_Name', 'District_Manager_Email', 'District_Manager_Phone', 'Last_Verified'],
+      filterCond: ACTIVE,
+      sort: 'District asc, Store_Number asc',
+    },
+    {
+      name: 'Leadership Contacts',
+      fields: ['Store_Number', 'Street_Address', 'City', 'State', 'Director_Name', 'District_Manager_Name', 'District_Manager_Phone', 'Store_Manager_Name', 'Store_Manager_Phone'],
       filterCond: ACTIVE,
       sort: 'District asc, Store_Number asc',
     },

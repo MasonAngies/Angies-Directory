@@ -62,6 +62,15 @@ test('concept values must be approved; district text must be canonically spaced'
   assert.deepEqual(check({ District: 'North Shore', Concept: [] }), []);
 });
 
+test('phones and states are optional but must be well formed', () => {
+  assert.deepEqual(check({ Store_Manager_Phone: '480-555-0123', Director_Phone: '', State: 'AZ' }), []);
+  assert.deepEqual(codes(check({ Store_Manager_Phone: '(480) 555-0123', District_Manager_Phone: '5550123', State: 'az' })), [
+    'INVALID_PHONE:Store_Manager_Phone',
+    'INVALID_PHONE:District_Manager_Phone',
+    'INVALID_STATE:State',
+  ]);
+});
+
 test('dates must be real and effective ranges ordered', () => {
   assert.equal(isValidDate('2026-02-30'), false);
   assert.equal(isValidDate('2028-02-29'), true);
@@ -104,6 +113,15 @@ test('cross-record checks find duplicates and inconsistent spellings', () => {
   assert.deepEqual(summary.MANAGER_EMAIL_NAME_CONFLICT, [0, 1, 3, 2]);
   assert.equal(issues.find((issue) => issue.code === 'DUPLICATE_STORE_NUMBER').severity, 'critical');
   assert.equal(issues.filter((issue) => issue.code === 'DUPLICATE_EXTERNAL_ID').length, 1, 'blank external IDs are not duplicates');
+});
+
+test('one phone recorded for two different people is flagged; the same person across roles is not', () => {
+  const issues = findCrossRecordIssues([
+    plainRecord({ Store_Manager_Name: 'Pat One', Store_Manager_Phone: '480-555-0100', District_Manager_Name: 'Dana District', District_Manager_Phone: '480-555-0199' }),
+    plainRecord({ Store_Number: '11102', Store_Manager_Name: 'Lee Two', Store_Manager_Phone: '480-555-0100' }),
+    plainRecord({ Store_Number: '11103', Store_Manager_Name: 'Dana District', Store_Manager_Phone: '480-555-0199' }),
+  ]).filter((issue) => issue.code === 'PHONE_NAME_CONFLICT');
+  assert.deepEqual(issues.map((issue) => [issue.value, issue.recordIndexes]), [['480-555-0100', [0, 1]]]);
 });
 
 test('Kintone records convert to plain values', () => {

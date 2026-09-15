@@ -31,6 +31,7 @@ npm run schema:plan         # dry run: what setup would change in the app
 |---|---|---|---|
 | `Concept` | Drop-down | Multi-choice: Prime, Lobster, Chicken, Burger, Pizza | Owner decision: stores can carry more than one concept |
 | `District` | Drop-down | Single-line text, strict exact matching | Owner decision: new districts need no schema change (see [Adding a district](docs/RUNBOOK.md#adding-a-district)) |
+| Extra fields | Not in spec | Street Address, City, State; Store Manager Phone; District Manager Phone; Director Name/Email/Phone; plus a `Leadership Contacts` view | Owner request (2026-09-15). All optional. Phones must look like `480-555-0123` (the form script reformats other layouts); State is a two-letter code |
 | Store Number format | "canonical" (undefined) | Digits only, 1-6 digits (e.g. `11101`), exact match | Owner decision; change `storeNumberPattern` in `config/directory.config.json` and the customization file together |
 | Exception views | One combined view with a missing-data column | One view per gap (`Exceptions - ...`) | Kintone views cannot mix AND with OR, and formulas cannot read Link or User fields. This is the spec's own fallback. `npm run audit` is the combined report |
 | Needs Verification | Blank or older than 90 days | `Active and Last_Verified < 90 days ago`, plus `Needs Verification - No Verifier` | Kintone treats blank dates as older, so one filter covers both (confirmed live) |

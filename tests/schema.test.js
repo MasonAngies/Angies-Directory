@@ -30,6 +30,15 @@ const SPEC_FIELDS = {
   Verified_By: 'USER_SELECT',
   Record_Owner: 'USER_SELECT',
   Change_Reason: 'MULTI_LINE_TEXT',
+  // Added at the owner's request (2026-09-15).
+  Street_Address: 'SINGLE_LINE_TEXT',
+  City: 'SINGLE_LINE_TEXT',
+  State: 'SINGLE_LINE_TEXT',
+  Store_Manager_Phone: 'LINK',
+  District_Manager_Phone: 'LINK',
+  Director_Name: 'SINGLE_LINE_TEXT',
+  Director_Email: 'LINK',
+  Director_Phone: 'LINK',
 };
 
 test('every spec field code exists with the specified type and rules (AC-01, AC-02)', () => {
@@ -42,7 +51,8 @@ test('every spec field code exists with the specified type and rules (AC-01, AC-
   assert.deepEqual(Object.keys(fields.Concept.options), ['Prime', 'Lobster', 'Chicken', 'Burger', 'Pizza']);
   for (const code of ['Store_Name', 'Active_Status', 'Record_Owner']) assert.equal(fields[code].required, true, code);
   for (const code of ['Toast_Location_ID', 'SevenShifts_Location_ID']) assert.equal(fields[code].unique, true, code);
-  for (const code of ['Store_Email', 'Store_Manager_Email', 'District_Manager_Email']) assert.equal(fields[code].protocol, 'MAIL', code);
+  for (const code of ['Store_Email', 'Store_Manager_Email', 'District_Manager_Email', 'Director_Email']) assert.equal(fields[code].protocol, 'MAIL', code);
+  for (const code of ['Store_Manager_Phone', 'District_Manager_Phone', 'Director_Phone']) assert.equal(fields[code].protocol, 'CALL', code);
 });
 
 test('form groups and rows follow the spec order (AC-04)', () => {
@@ -54,9 +64,13 @@ test('form groups and rows follow the spec order (AC-04)', () => {
     Group_Identity: [
       ['Store_Number', 'Store_Name', 'Active_Status'],
       ['Concept', 'District', 'Record_Owner'],
+      ['Street_Address', 'City', 'State'],
     ],
-    Group_Store_Contacts: [['Store_Email', 'Store_Manager_Name', 'Store_Manager_Email']],
-    Group_District_Leadership: [['District_Manager_Name', 'District_Manager_Email']],
+    Group_Store_Contacts: [['Store_Email', 'Store_Manager_Name', 'Store_Manager_Email'], ['Store_Manager_Phone']],
+    Group_District_Leadership: [
+      ['District_Manager_Name', 'District_Manager_Email', 'District_Manager_Phone'],
+      ['Director_Name', 'Director_Email', 'Director_Phone'],
+    ],
     Group_External_Systems: [['Toast_Location_ID', 'SevenShifts_Location_ID']],
     Group_Governance: [
       ['Effective_Start', 'Effective_End', 'Last_Verified'],
