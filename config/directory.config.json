@@ -3,5 +3,5 @@
   "storeNumberExample": "11101",
   "concepts": ["Prime", "Lobster", "Chicken", "Burger", "Pizza"],
   "verificationMaxAgeDays": 90,
-  "timeZone": "America/New_York"
+  "timeZone": "America/Phoenix"
 }

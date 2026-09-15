@@ -2,7 +2,7 @@
 
 Kintone is the system of record for which restaurant belongs to which district, who manages it, its operational mailbox, and its Toast/7shifts IDs. This repo holds everything around that app: an idempotent schema setup, import validation, a health audit, backups, and a read-only lookup client that future tools can use.
 
-Scope is **directory only** ([docs/SPEC.md](docs/SPEC.md)). Nothing here sends email, touches invoices, or calls Microsoft Graph.
+Scope is **directory only** ([docs/SPEC.md](docs/SPEC.md)). Nothing here sends email or touches invoices. The one outside call is the daily export that writes a read-only copy of the directory to SharePoint for departments without Kintone access.
 
 ## Quick start
 
@@ -22,6 +22,8 @@ npm run schema:plan         # dry run: what setup would change in the app
 | `npm run import:validate -- file.csv` | Checks a CSV before import (`--offline`, or `--reconcile` after import) | No |
 | `npm run backup` | Exports settings and all records to `backups/` (`--settings-only` available) | No |
 | `npm run lookup -- 11101` | Runs the lookup contract for one store | No |
+| `npm run export` | Builds the shared Excel file in `exports/` | No |
+| `npm run export -- --upload` | Builds it and replaces the SharePoint copy | SharePoint only |
 
 `backups/` and `reports/` contain directory contact data and are gitignored. Keep it that way; this repository is public.
 
@@ -48,6 +50,8 @@ Environment variables (names only; values live in `.env` or your secret manager)
 | `KINTONE_BASE_URL` | Kintone site origin, `https://<subdomain>.kintone.com` |
 | `KINTONE_APP_ID` | Directory app ID (dev app until production is approved) |
 | `KINTONE_API_TOKEN` | Setup/admin token: **View records** + **Manage app**. Consumers of the lookup should get a separate token with **View records** only |
+| `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` | Export job only: app registration with the Graph **Sites.Selected** permission, granted write on the one site |
+| `SHAREPOINT_HOST`, `SHAREPOINT_SITE_PATH`, `SHAREPOINT_LIBRARY`, `SHAREPOINT_FOLDER`, `EXPORT_FILE_NAME` | Where the workbook is written; library/folder/name may be left blank for the defaults |
 
 Committed configuration:
 
@@ -55,6 +59,20 @@ Committed configuration:
 - `config/permissions.json`: role membership. Set `"apply": true` only once admins/verifiers/editors/readers are filled in; entries look like `{ "type": "GROUP", "code": "store-ops" }` or `{ "type": "USER", "code": "name@company.com" }`. An entity can hold one role.
 
 Kintone limits worth knowing: the API token cannot upload JavaScript customization, and record change history is an app setting to confirm in the UI.
+
+## Daily SharePoint export
+
+Departments without Kintone read an Excel copy in SharePoint. `npm run export -- --upload`
+rebuilds `Angies Store Directory.xlsx` from the live app and replaces the file in place, so
+its link never changes. The sheet holds the contact fields plus two columns readers need:
+**Verified** (the sign-off date, "Not verified yet", or a note that it is over 90 days old)
+and **Data Check** (which fields are missing or invalid). A footer says the file is a daily
+copy and that Kintone is the system of record.
+
+The job refuses to publish an empty file, so a Kintone outage leaves yesterday's copy in
+place instead of blanking it for every reader. It runs on Modal (see `modal_app.py`), and
+[docs/RUNBOOK.md](docs/RUNBOOK.md#daily-sharepoint-export) covers the one-time Microsoft
+permission, the secret, and how it is triggered.
 
 ## Using the lookup contract
 
@@ -75,8 +93,9 @@ It exact-matches `Store_Number` and returns a record only when the store is Acti
 config/          directory and permission configuration
 customization/   form validation script to upload into Kintone
 docs/            SPEC.md (source of truth), RUNBOOK.md, ACCEPTANCE.md
-scripts/         CLI entry points (setup, audit, import validation, backup, lookup)
-src/             Kintone client, field contract, rules, schema plan, audit, lookup
+scripts/         CLI entry points (setup, audit, import validation, backup, lookup, export)
+src/             Kintone client, field contract, rules, schema plan, audit, lookup, export, Graph
+modal_app.py     Modal deployment of the daily SharePoint export
 templates/       import CSV template (headers are the exact field codes)
 tests/           node:test suites with fictional fixtures
 ```

@@ -17,6 +17,7 @@
     "audit": "node --env-file-if-exists=.env scripts/audit.js",
     "backup": "node --env-file-if-exists=.env scripts/backup.js",
     "import:validate": "node --env-file-if-exists=.env scripts/validate-import.js",
-    "lookup": "node --env-file-if-exists=.env scripts/lookup.js"
+    "lookup": "node --env-file-if-exists=.env scripts/lookup.js",
+    "export": "node --env-file-if-exists=.env scripts/export-directory.js"
   }
 }

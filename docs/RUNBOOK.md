@@ -107,6 +107,33 @@ The API token cannot upload customization, so an app admin uploads it once and a
 
 It trims identifiers, requires Active-store contact fields, checks email syntax and date order, and rejects district spellings that differ only by capitalization. Imports and API writes bypass it; the audit and import validator catch those.
 
+## Daily SharePoint export
+
+Other departments read `Angies Store Directory.xlsx` in SharePoint, rebuilt from Kintone every morning. Only the contact fields are exported, plus a **Verified** and a **Data Check** column. The file is replaced in place, so its link and permissions stay put, and edits made in the file are overwritten the next morning.
+
+### One-time setup
+
+1. **Graph permission (needs a Microsoft admin).** Use the app registration that already sends mail, or a new one. Add the *application* permission **Sites.Selected** and grant admin consent. Do not use Sites.ReadWrite.All: Sites.Selected limits the app to the one site below.
+2. **Grant the app write access to that site.** An admin with `Sites.FullControl.All` runs, in Graph Explorer:
+   - `GET https://graph.microsoft.com/v1.0/sites/<host>:/sites/<SiteName>` to get the site id
+   - `POST https://graph.microsoft.com/v1.0/sites/<site id>/permissions` with body
+     `{"roles":["write"],"grantedToIdentities":[{"application":{"id":"<client id>","displayName":"Angies Store Directory"}}]}`
+3. **Create the Modal secret** with the Kintone values (a View-records-only token is enough) and the Microsoft ones:
+   `modal secret create angies-store-directory KINTONE_BASE_URL=... KINTONE_APP_ID=... KINTONE_API_TOKEN=... GRAPH_TENANT_ID=... GRAPH_CLIENT_ID=... GRAPH_CLIENT_SECRET=... SHAREPOINT_HOST=... SHAREPOINT_SITE_PATH=... SHAREPOINT_FOLDER=...`
+4. **Deploy:** `modal deploy modal_app.py`, then `modal run modal_app.py::daily_export` for a first run.
+5. **Trigger it daily.** The workspace allows five scheduled functions and all five are taken, so an existing daily job calls this one, the same way food cost calls DC inventory:
+   `modal.Function.from_name("angies-store-directory", "daily_export").remote()`
+   If a slot frees up, uncomment the `schedule=` line in `modal_app.py` and drop the caller.
+6. **Share the file** with the departments that need it (read-only), and point them at the file, not the folder.
+
+### Checking and fixing it
+
+- Test any time without touching SharePoint: `npm run export` writes to `exports/` only.
+- The Modal run log prints the store count, how many rows are complete, and the uploaded file URL.
+- `accessDenied` from Graph means step 2 was not done for this site, or the permission was granted to a different app registration.
+- "refusing to publish an empty file" means Kintone returned no active stores. Check Kintone, then re-run; the previous file is untouched.
+- Wrong or missing data in the file is a directory problem, not an export problem: fix the record in Kintone and the next run picks it up.
+
 ## Tokens
 
 - Rotate the setup token after initial build and whenever it may have been exposed. Generate a new one in App Settings > API Token, update `.env`/the secret store, then delete the old token.
