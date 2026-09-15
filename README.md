@@ -36,9 +36,8 @@ npm run schema:plan         # dry run: what setup would change in the app
 | Extra fields | Not in spec | Street Address, City, State; Store Manager Phone; District Manager Phone; Director Name/Email/Phone; plus a `Leadership Contacts` view | Owner request (2026-09-15). All optional. Phones must look like `480-555-0123` (the form script reformats other layouts); State is a two-letter code |
 | Store Number format | "canonical" (undefined) | Digits only, 1-6 digits (e.g. `11101`), exact match | Owner decision; change `storeNumberPattern` in `config/directory.config.json` and the customization file together |
 | Exception views | One combined view with a missing-data column | None; `npm run audit` is the exception report | Kintone views cannot mix AND with OR, and formulas cannot read Link or User fields. Per-gap `Exceptions - ...` views were used during the initial load, then retired by the owner (2026-09-15) |
-| Needs Verification | Blank or older than 90 days | `Active and Last_Verified < 90 days ago` | Kintone treats blank dates as older, so one filter covers both (confirmed live) |
 | Help text | Under Store Number / Store Email | Small label rows beneath those fields (and District) | Kintone has no per-field help text API |
-| Governance group | May be collapsed | Expanded | Editors must fill Change Reason on every material change |
+| Governance fields | Record Owner, Effective Start/End, Last Verified, Verified By, Change Reason | **Removed** — the owner deleted them from the app on 2026-09-15 | The directory is contact data only. Lookups no longer withhold unverified stores, there is no effective-date window, and Kintone's own record history is the edit trail |
 | Permissions | Admin / editor / reader | Built and tested, **not applied** | Owner decision until Kintone user/group codes are supplied |
 
 ## Configuration and secrets inventory
@@ -64,10 +63,9 @@ Kintone limits worth knowing: the API token cannot upload JavaScript customizati
 
 Departments without Kintone read an Excel copy in SharePoint. `npm run export -- --upload`
 rebuilds `Angies Store Directory.xlsx` from the live app and replaces the file in place, so
-its link never changes. The sheet holds the contact fields plus two columns readers need:
-**Verified** (the sign-off date, "Not verified yet", or a note that it is over 90 days old)
-and **Data Check** (which fields are missing or invalid). A footer says the file is a daily
-copy and that Kintone is the system of record.
+its link never changes. The sheet holds the contact fields only; a footer says the file is a
+daily copy and that Kintone is the system of record. Verification state and data gaps stay
+in `npm run audit`, not in the shared file.
 
 The job refuses to publish an empty file, so a Kintone outage leaves yesterday's copy in
 place instead of blanking it for every reader. It runs on Modal (see `modal_app.py`), and
@@ -85,7 +83,7 @@ if (!result.ok) {
 }
 ```
 
-It exact-matches `Store_Number` and returns a record only when the store is Active, inside its effective dates, complete, and verified. Otherwise it returns one of the typed reason codes. It never caches, fuzzy-matches, or falls back. Stale verification (over 90 days) still returns `DIRECTORY_OK` and is reported by the audit; `lastVerified` is included so a consumer can apply a stricter policy. For tests or custom wiring use `createDirectoryLookup({ client, appId, config, logger })`.
+It exact-matches `Store_Number` and returns a record only when the store is Active and its contact data is complete and valid. Otherwise it returns one of the typed reason codes. It never caches, fuzzy-matches, or falls back. For tests or custom wiring use `createDirectoryLookup({ client, appId, config, logger })`.
 
 ## Project layout
 

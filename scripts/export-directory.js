@@ -9,7 +9,6 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { loadDirectoryConfig, loadEnvConfig, withLiveOptions } from '../src/config.js';
-import { todayIn } from '../src/directory/rules.js';
 import { buildDirectoryWorkbook } from '../src/export/directory-export.js';
 import { createGraphClient } from '../src/graph/client.js';
 import { createKintoneClient } from '../src/kintone/client.js';
@@ -38,7 +37,7 @@ async function main() {
   const client = createKintoneClient(env);
   const config = await withLiveOptions(loadDirectoryConfig(), client, env.appId);
   const records = await client.getAllRecords({ app: env.appId });
-  const { file, summary } = buildDirectoryWorkbook(records, { config, today: todayIn(config.timeZone) });
+  const { file, summary } = buildDirectoryWorkbook(records, { config });
 
   const fileName = process.env.EXPORT_FILE_NAME ?? 'Angies Store Directory.xlsx';
   const outDir = values.out ?? fileURLToPath(new URL('../exports/', import.meta.url));

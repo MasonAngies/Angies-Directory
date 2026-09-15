@@ -21,7 +21,6 @@ function fieldProperties(config) {
   set('Store_Name', { required: true });
   set('Active_Status', { required: true, options: optionsFrom(STATUS_VALUES), defaultValue: 'Active' });
   set('Concept', { options: optionsFrom(config.concepts), defaultValue: [] });
-  set('Record_Owner', { required: true });
   for (const code of EMAIL_FIELDS) set(code, { protocol: 'MAIL' });
   for (const code of PHONE_FIELDS) set(code, { protocol: 'CALL' });
   set('Toast_Location_ID', { unique: true });
@@ -29,14 +28,13 @@ function fieldProperties(config) {
   return base;
 }
 
-// Governance stays expanded because editors must fill Change Reason on every
-// material edit; the spec allows (but does not require) collapsing it.
+// The spec's Governance group is gone: the owner removed those fields from the
+// app on 2026-09-15, so the directory holds contact data only.
 export const GROUPS = [
   { code: 'Group_Identity', label: 'Identity', openGroup: true },
   { code: 'Group_Store_Contacts', label: 'Store Contacts', openGroup: true },
   { code: 'Group_District_Leadership', label: 'District Leadership', openGroup: true },
   { code: 'Group_External_Systems', label: 'External Systems', openGroup: false },
-  { code: 'Group_Governance', label: 'Governance', openGroup: true },
   { code: 'Group_Notes', label: 'Notes', openGroup: false },
   { code: 'Group_System_Audit', label: 'System Audit', openGroup: false },
 ];
@@ -63,7 +61,7 @@ export function buildLayout() {
         cell('DROP_DOWN', 'Active_Status', W.third),
       ),
       help('Store_Number'),
-      row(cell('MULTI_SELECT', 'Concept', W.third), cell('SINGLE_LINE_TEXT', 'District', W.third), cell('USER_SELECT', 'Record_Owner', W.third)),
+      row(cell('MULTI_SELECT', 'Concept', W.third), cell('SINGLE_LINE_TEXT', 'District', W.third)),
       row({ type: 'SPACER', elementId: '', size: { width: W.third } }, label('District')),
       row(cell('SINGLE_LINE_TEXT', 'Street_Address', W.third), cell('SINGLE_LINE_TEXT', 'City', W.third), cell('SINGLE_LINE_TEXT', 'State', W.third)),
     ),
@@ -80,11 +78,6 @@ export function buildLayout() {
     group(
       'Group_External_Systems',
       row(cell('SINGLE_LINE_TEXT', 'Toast_Location_ID', W.third), cell('SINGLE_LINE_TEXT', 'SevenShifts_Location_ID', W.third)),
-    ),
-    group(
-      'Group_Governance',
-      row(cell('DATE', 'Effective_Start', W.third), cell('DATE', 'Effective_End', W.third), cell('DATE', 'Last_Verified', W.third)),
-      row(cell('USER_SELECT', 'Verified_By', W.third), cell('MULTI_LINE_TEXT', 'Change_Reason', W.twoThirds, { innerHeight: '80' })),
     ),
     group('Group_Notes', row(cell('MULTI_LINE_TEXT', 'Routing_Notes', W.full, { innerHeight: '100' }))),
     group(
@@ -110,7 +103,7 @@ export function buildViews() {
   const list = [
     {
       name: 'Active Directory',
-      fields: ['Store_Number', 'Store_Name', 'District', 'Store_Email', 'Store_Manager_Name', 'Store_Manager_Email', 'Store_Manager_Phone', 'District_Manager_Name', 'District_Manager_Email', 'District_Manager_Phone', 'Last_Verified'],
+      fields: ['Store_Number', 'Store_Name', 'District', 'Store_Email', 'Store_Manager_Name', 'Store_Manager_Email', 'Store_Manager_Phone', 'District_Manager_Name', 'District_Manager_Email', 'District_Manager_Phone'],
       filterCond: ACTIVE,
       sort: 'District asc, Store_Number asc',
     },
@@ -120,17 +113,9 @@ export function buildViews() {
       filterCond: ACTIVE,
       sort: 'District asc, Store_Number asc',
     },
-    // Kintone treats a blank date as earlier than any date, so this single filter
-    // catches never-verified and overdue records alike (confirmed live 2026-09-15).
-    {
-      name: 'Needs Verification',
-      fields: ['Store_Number', 'Store_Name', 'District', 'Last_Verified', 'Verified_By', 'Record_Owner'],
-      filterCond: `${ACTIVE} and Last_Verified < FROM_TODAY(-90, DAYS)`,
-      sort: 'Last_Verified asc',
-    },
     {
       name: 'Inactive and Closed',
-      fields: ['Store_Number', 'Store_Name', 'District', 'Active_Status', 'Effective_End'],
+      fields: ['Store_Number', 'Store_Name', 'District', 'Active_Status'],
       filterCond: 'Active_Status in ("Inactive", "Closed")',
     },
     {
@@ -147,6 +132,7 @@ export function buildViews() {
 // Views this project created earlier and has since replaced. Setup removes only
 // these names; views anyone else creates are always preserved.
 export const RETIRED_VIEWS = [
+  'Needs Verification',
   'Needs Verification - Over 90 Days',
   'Needs Verification - Never Verified',
   'Needs Verification - No Verifier',

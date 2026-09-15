@@ -20,11 +20,11 @@ export function runAudit(kintoneRecords, { config, today, previousState = null, 
 
   const issues = [];
   for (const record of records) {
-    for (const issue of validateRecord(record, { config, today })) issues.push({ ...ref(record), ...issue });
+    for (const issue of validateRecord(record, { config })) issues.push({ ...ref(record), ...issue });
   }
   // Duplicate keys, external IDs, or store mailboxes make every record involved
   // untrustworthy. A district spelling conflict must be fixed but does not make
-  // each store's contact data wrong, so it does not pull them from approved exports.
+  // each store's contact data wrong, so it does not mark those rows unusable.
   for (const { recordIndexes, ...issue } of findCrossRecordIssues(records)) {
     const blocks = issue.severity === 'critical' || issue.code === 'DUPLICATE_STORE_EMAIL';
     for (const index of recordIndexes) issues.push({ ...ref(records[index]), ...issue, blocksApproval: blocks });
@@ -38,7 +38,7 @@ export function runAudit(kintoneRecords, { config, today, previousState = null, 
 
   const active = records.filter((record) => record.Active_Status === 'Active');
   const blockedIds = new Set(issues.filter((issue) => issue.blocksApproval).map((issue) => issue.recordId));
-  const approved = active.filter((record) => !blockedIds.has(record.$id));
+  const complete = active.filter((record) => !blockedIds.has(record.$id));
 
   const changes = [];
   if (previousState) {
@@ -54,9 +54,6 @@ export function runAudit(kintoneRecords, { config, today, previousState = null, 
         activeStatus: record.Active_Status,
         updatedAt: record.Updated_datetime,
         updatedBy: record.Updated_by,
-        recordOwner: record.Record_Owner.join(', '),
-        lastVerified: record.Last_Verified,
-        verifiedBy: record.Verified_By.join(', '),
       });
     }
     for (const [recordId, previous] of Object.entries(previousState.records)) {
@@ -70,7 +67,7 @@ export function runAudit(kintoneRecords, { config, today, previousState = null, 
     previousAuditAt: previousState?.auditedAt ?? null,
     totalRecords: records.length,
     activeRecords: active.length,
-    activeApprovedForUse: approved.length,
+    activeComplete: complete.length,
     recordsByStatus: countBy(records, (record) => record.Active_Status || '(blank)'),
     activeByDistrict: countBy(active, (record) => record.District || '(blank)'),
     issuesBySeverity: countBy(issues, (issue) => issue.severity),
@@ -83,7 +80,7 @@ export function runAudit(kintoneRecords, { config, today, previousState = null, 
     records: Object.fromEntries(records.map((record) => [record.$id, { revision: record.$revision, storeNumber: record.Store_Number }])),
   };
 
-  return { summary, issues, changes, approvedRecordIds: approved.map((record) => record.$id), nextState };
+  return { summary, issues, changes, completeRecordIds: complete.map((record) => record.$id), nextState };
 }
 
 // 2 = critical (duplicate keys or external IDs), 1 = errors, 0 = clean or warnings only.

@@ -3,15 +3,7 @@
 
 import { loadDirectoryConfig, loadEnvConfig } from '../config.js';
 import { FIELD_CODES } from '../directory/fields.js';
-import {
-  blocksApproval,
-  fromKintoneRecord,
-  isCanonicalStoreNumber,
-  isEffectiveOn,
-  isValidDate,
-  todayIn,
-  validateRecord,
-} from '../directory/rules.js';
+import { blocksApproval, fromKintoneRecord, isCanonicalStoreNumber, validateRecord } from '../directory/rules.js';
 import { createKintoneClient, escapeQueryValue } from '../kintone/client.js';
 
 export const REASON_CODES = Object.freeze({
@@ -24,10 +16,8 @@ export const REASON_CODES = Object.freeze({
   KINTONE_UNAVAILABLE: 'KINTONE_UNAVAILABLE',
 });
 
-// Free-text notes and change history are never needed by consumers.
-export const LOOKUP_FIELDS = ['$id', '$revision', ...FIELD_CODES.filter((code) => !['Change_Reason', 'Routing_Notes'].includes(code))];
-
-const DATE_ISSUES = new Set(['INVALID_DATE', 'EFFECTIVE_DATES_INVALID']);
+// Free-text notes are never needed by consumers.
+export const LOOKUP_FIELDS = ['$id', '$revision', ...FIELD_CODES.filter((code) => code !== 'Routing_Notes')];
 
 function toContractRecord(plain) {
   return {
@@ -54,7 +44,6 @@ function toContractRecord(plain) {
     sevenShiftsLocationId: plain.SevenShifts_Location_ID,
     recordId: plain.$id,
     recordRevision: plain.$revision,
-    lastVerified: plain.Last_Verified,
   };
 }
 
@@ -64,19 +53,16 @@ function normalizeInput(storeNumber) {
   return '';
 }
 
-export function createDirectoryLookup({ client, appId, config, logger = () => {}, now = () => new Date() }) {
-  return async function getStoreDirectoryRecord({ storeNumber, asOfDate, correlationId } = {}) {
+export function createDirectoryLookup({ client, appId, config, logger = () => {} }) {
+  return async function getStoreDirectoryRecord({ storeNumber, correlationId } = {}) {
     const started = performance.now();
     const normalized = normalizeInput(storeNumber);
-    const asOf = asOfDate ?? todayIn(config.timeZone, now());
-    if (!isValidDate(asOf)) throw new TypeError('asOfDate must be a YYYY-MM-DD string');
 
     const finish = (reasonCode, { record = null, plain = null, issues, error } = {}) => {
       logger({
         event: 'directory_lookup',
         reasonCode,
         storeNumber: normalized.slice(0, 32),
-        asOfDate: asOf,
         recordId: plain?.$id ?? null,
         recordRevision: plain?.$revision ?? null,
         latencyMs: Math.round(performance.now() - started),
@@ -110,11 +96,7 @@ export function createDirectoryLookup({ client, appId, config, logger = () => {}
 
     // Kintone already enforces option values, and admins may add options
     // without a config change, so option membership is not re-checked here.
-    const issues = validateRecord(plain, { config, today: asOf }).filter((issue) => issue.code !== 'INVALID_OPTION');
-    const dateIssues = issues.filter((issue) => DATE_ISSUES.has(issue.code));
-    if (dateIssues.length) return finish(REASON_CODES.DIRECTORY_INCOMPLETE, { plain, issues: dateIssues });
-    if (!isEffectiveOn(plain, asOf)) return finish(REASON_CODES.STORE_NOT_ACTIVE, { plain });
-
+    const issues = validateRecord(plain, { config }).filter((issue) => issue.code !== 'INVALID_OPTION');
     const blockers = issues.filter((issue) => issue.blocksApproval);
     if (blocksApproval(issues)) return finish(REASON_CODES.DIRECTORY_INCOMPLETE, { plain, issues: blockers });
 

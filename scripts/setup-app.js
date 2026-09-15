@@ -35,7 +35,7 @@ function buildPlan(definition, state, permissions) {
   const fields = planFields(definition.fields, state.properties);
   const layout = planLayout(definition.layout, state.layout, fields.unmanaged, state.properties);
   const views = planViews(definition.views, state.views, definition.retiredViews);
-  const perms = planPermissions(permissions, state.appRights, state.fieldRights);
+  const perms = planPermissions(permissions, state.appRights);
   const conflicts = [...fields.conflicts, ...checkSystemFieldCodes(definition.layout, state.properties)];
   const changed = Object.keys(fields.add).length > 0 || Object.keys(fields.update).length > 0 || layout.changed || views.changed || perms.changed;
   return { fields, layout, views, perms, conflicts, changed };
@@ -54,7 +54,7 @@ function printPlan(plan) {
   if (views.removed.length) lines.push(`Remove retired views: ${views.removed.join(', ')}`);
   if (views.unmanaged.length) lines.push(`Keep other views: ${views.unmanaged.join(', ')}`);
   if (!perms.managed) lines.push('Permissions: not managed (config/permissions.json "apply" is false)');
-  else if (perms.changed) lines.push(`Permissions: ${[perms.appChanged && 'app', perms.fieldChanged && 'field'].filter(Boolean).join(' and ')} rights will be replaced`);
+  else if (perms.changed) lines.push('Permissions: app rights will be replaced');
   for (const conflict of plan.conflicts) lines.push(`CONFLICT: ${conflict}`);
   console.log(lines.length ? lines.map((line) => `- ${line}`).join('\n') : '- No changes');
 }
@@ -69,7 +69,6 @@ async function applyPlan(client, app, plan) {
   if (layout.changed) await client.put('preview/app/form/layout', { app, layout: layout.layout });
   if (views.changed) await client.put('preview/app/views', { app, views: views.views });
   if (perms.appChanged) await client.put('preview/app/acl', { app, rights: perms.rights });
-  if (perms.fieldChanged) await client.put('preview/field/acl', { app, rights: perms.fieldRights });
 }
 
 async function main() {

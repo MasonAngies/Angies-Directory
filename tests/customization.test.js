@@ -41,8 +41,6 @@ const record = (overrides = {}) => {
     District_Manager_Email: 'dana@example.com',
     Toast_Location_ID: '',
     SevenShifts_Location_ID: '',
-    Effective_Start: '',
-    Effective_End: '',
     ...overrides,
   };
   return Object.fromEntries(Object.entries(values).map(([code, value]) => [code, { value }]));
@@ -65,11 +63,11 @@ test('registers on create, edit, inline edit, and mobile submit events', () => {
 
 test('validate trims identifiers and blocks incomplete Active records', () => {
   const { validate } = load().exports;
-  const r = record({ Store_Number: ' 11101 ', District: '  North   Shore ', Store_Email: '', Store_Manager_Email: 'sam@', Effective_Start: '2026-09-10', Effective_End: '2026-09-01' });
+  const r = record({ Store_Number: ' 11101 ', District: '  North   Shore ', Store_Email: '', Store_Manager_Email: 'sam@' });
   const errors = plain(validate(r));
   assert.equal(r.Store_Number.value, '11101');
   assert.equal(r.District.value, 'North Shore');
-  assert.deepEqual(Object.keys(errors).sort(), ['Effective_End', 'Store_Email', 'Store_Manager_Email']);
+  assert.deepEqual(Object.keys(errors).sort(), ['Store_Email', 'Store_Manager_Email']);
   assert.deepEqual(plain(validate(record({ Active_Status: 'Opening', Store_Email: '' }))), {});
   assert.ok(validate(record({ Store_Number: 'AB-1' })).Store_Number);
 });

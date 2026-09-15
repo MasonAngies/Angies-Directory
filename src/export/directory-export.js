@@ -1,8 +1,7 @@
 // Builds the shared directory workbook: the contact fields other departments
 // need, plus columns showing how trustworthy each row is.
 
-import { FIELD_LABELS } from '../directory/fields.js';
-import { daysBetween, fromKintoneRecord, isBlank, isValidDate, validateRecord } from '../directory/rules.js';
+import { fromKintoneRecord, validateRecord } from '../directory/rules.js';
 import { buildXlsx } from './xlsx.js';
 
 export const EXPORT_COLUMNS = [
@@ -26,24 +25,12 @@ export const EXPORT_COLUMNS = [
   { code: 'Director_Phone', header: 'Director Phone', width: 17 },
 ];
 
-export const STATUS_COLUMNS = [
-  { header: 'Verified', width: 26 },
-  { header: 'Data Check', width: 40 },
-];
-
-// Issues a reader of the export should know about before using a row.
-const READER_VISIBLE = new Set(['ACTIVE_FIELD_MISSING', 'REQUIRED_FIELD_MISSING', 'INVALID_EMAIL', 'INVALID_PHONE']);
-
-export function verificationLabel(record, { config, today }) {
-  if (isBlank(record.Last_Verified) || isBlank(record.Verified_By)) return 'Not verified yet';
-  if (!isValidDate(record.Last_Verified)) return 'Verification date unreadable';
-  const age = daysBetween(record.Last_Verified, today);
-  return age > config.verificationMaxAgeDays ? `${record.Last_Verified} (over ${config.verificationMaxAgeDays} days old)` : record.Last_Verified;
-}
+// Counted for the run log only; the workbook itself carries contact fields alone.
+const GAP_CODES = new Set(['ACTIVE_FIELD_MISSING', 'REQUIRED_FIELD_MISSING', 'INVALID_EMAIL', 'INVALID_PHONE']);
 
 const cellValue = (value) => (Array.isArray(value) ? value.join(', ') : String(value ?? ''));
 
-export function buildExportRows(kintoneRecords, { config, today }) {
+export function buildExportRows(kintoneRecords, { config }) {
   const records = kintoneRecords
     .map(fromKintoneRecord)
     .filter((record) => record.Active_Status === 'Active')
@@ -54,25 +41,20 @@ export function buildExportRows(kintoneRecords, { config, today }) {
 
   let complete = 0;
   const rows = records.map((record) => {
-    const issues = validateRecord(record, { config, today }).filter((issue) => READER_VISIBLE.has(issue.code));
-    const missing = [...new Set(issues.map((issue) => FIELD_LABELS[issue.field] ?? issue.field))];
-    if (!missing.length) complete += 1;
-    return [
-      ...EXPORT_COLUMNS.map((column) => cellValue(record[column.code])),
-      verificationLabel(record, { config, today }),
-      missing.length ? `Missing or invalid: ${missing.join(', ')}` : 'Complete',
-    ];
+    const gaps = validateRecord(record, { config }).filter((issue) => GAP_CODES.has(issue.code));
+    if (!gaps.length) complete += 1;
+    return EXPORT_COLUMNS.map((column) => cellValue(record[column.code]));
   });
 
   return {
-    columns: [...EXPORT_COLUMNS, ...STATUS_COLUMNS],
+    columns: [...EXPORT_COLUMNS],
     rows,
     summary: { activeStores: records.length, completeRows: complete, incompleteRows: records.length - complete },
   };
 }
 
-export function buildDirectoryWorkbook(kintoneRecords, { config, today, generatedAt = new Date() }) {
-  const { columns, rows, summary } = buildExportRows(kintoneRecords, { config, today });
+export function buildDirectoryWorkbook(kintoneRecords, { config, generatedAt = new Date() }) {
+  const { columns, rows, summary } = buildExportRows(kintoneRecords, { config });
   const stamp = new Intl.DateTimeFormat('en-US', {
     timeZone: config.timeZone,
     dateStyle: 'medium',

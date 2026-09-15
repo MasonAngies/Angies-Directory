@@ -9,7 +9,8 @@ import { buildPermissions, planFields, planLayout, planPermissions, planViews } 
 const config = loadDirectoryConfig();
 const definition = buildDefinition(config);
 
-// docs/SPEC.md section 3, with the owner's approved changes to Concept and District.
+// docs/SPEC.md section 3, with the owner's changes: Concept, District, the added
+// address/phone/director fields, and the governance fields removed on 2026-09-15.
 const SPEC_FIELDS = {
   Store_Number: 'SINGLE_LINE_TEXT',
   Store_Name: 'SINGLE_LINE_TEXT',
@@ -24,12 +25,6 @@ const SPEC_FIELDS = {
   Routing_Notes: 'MULTI_LINE_TEXT',
   Toast_Location_ID: 'SINGLE_LINE_TEXT',
   SevenShifts_Location_ID: 'SINGLE_LINE_TEXT',
-  Effective_Start: 'DATE',
-  Effective_End: 'DATE',
-  Last_Verified: 'DATE',
-  Verified_By: 'USER_SELECT',
-  Record_Owner: 'USER_SELECT',
-  Change_Reason: 'MULTI_LINE_TEXT',
   // Added at the owner's request (2026-09-15).
   Street_Address: 'SINGLE_LINE_TEXT',
   City: 'SINGLE_LINE_TEXT',
@@ -49,7 +44,7 @@ test('every spec field code exists with the specified type and rules (AC-01, AC-
   assert.deepEqual(Object.keys(fields.Active_Status.options), ['Active', 'Inactive', 'Opening', 'Closed']);
   assert.equal(fields.Active_Status.defaultValue, 'Active');
   assert.deepEqual(Object.keys(fields.Concept.options), ['Prime', 'Lobster', 'Chicken', 'Burger', 'Pizza']);
-  for (const code of ['Store_Name', 'Active_Status', 'Record_Owner']) assert.equal(fields[code].required, true, code);
+  for (const code of ['Store_Name', 'Active_Status']) assert.equal(fields[code].required, true, code);
   for (const code of ['Toast_Location_ID', 'SevenShifts_Location_ID']) assert.equal(fields[code].unique, true, code);
   for (const code of ['Store_Email', 'Store_Manager_Email', 'District_Manager_Email', 'Director_Email']) assert.equal(fields[code].protocol, 'MAIL', code);
   for (const code of ['Store_Manager_Phone', 'District_Manager_Phone', 'Director_Phone']) assert.equal(fields[code].protocol, 'CALL', code);
@@ -63,7 +58,7 @@ test('form groups and rows follow the spec order (AC-04)', () => {
   assert.deepEqual(layout, {
     Group_Identity: [
       ['Store_Number', 'Store_Name', 'Active_Status'],
-      ['Concept', 'District', 'Record_Owner'],
+      ['Concept', 'District'],
       ['Street_Address', 'City', 'State'],
     ],
     Group_Store_Contacts: [['Store_Email', 'Store_Manager_Name', 'Store_Manager_Email'], ['Store_Manager_Phone']],
@@ -72,10 +67,6 @@ test('form groups and rows follow the spec order (AC-04)', () => {
       ['Director_Name', 'Director_Email', 'Director_Phone'],
     ],
     Group_External_Systems: [['Toast_Location_ID', 'SevenShifts_Location_ID']],
-    Group_Governance: [
-      ['Effective_Start', 'Effective_End', 'Last_Verified'],
-      ['Verified_By', 'Change_Reason'],
-    ],
     Group_Notes: [['Routing_Notes']],
     Group_System_Audit: [['Created_datetime', 'Created_by', 'Updated_datetime', 'Updated_by', 'Record_number']],
   });
@@ -85,11 +76,11 @@ test('form groups and rows follow the spec order (AC-04)', () => {
 
 test('views cover the spec and never mix AND with OR (AC-05)', () => {
   const views = definition.views;
-  for (const name of ['Active Directory', 'Needs Verification', 'Inactive and Closed', 'External ID Mapping']) {
+  for (const name of ['Active Directory', 'Leadership Contacts', 'Inactive and Closed', 'External ID Mapping']) {
     assert.ok(views[name], name);
   }
   assert.deepEqual(Object.keys(views).filter((name) => name.startsWith('Exceptions - ')), [], 'per-gap views are retired');
-  for (const name of ['Exceptions - Missing Store Email', 'Needs Verification - No Verifier']) {
+  for (const name of ['Exceptions - Missing Store Email', 'Needs Verification']) {
     assert.ok(definition.retiredViews.includes(name), name);
   }
   assert.equal(views['Active Directory'].filterCond, 'Active_Status in ("Active")');
@@ -152,24 +143,20 @@ test('planLayout and planViews preserve elements the spec does not own', () => {
 });
 
 test('permissions are only managed when explicitly enabled (AC-06)', () => {
-  assert.deepEqual(planPermissions({ apply: false }, [], []), { managed: false, changed: false });
+  assert.deepEqual(planPermissions({ apply: false }, []), { managed: false, changed: false });
   assert.throws(() => buildPermissions({ editors: [{ type: 'GROUP', code: 'ops' }] }), /at least one administrator/);
   assert.throws(
     () => buildPermissions({ admins: [{ type: 'USER', code: 'a' }], readers: [{ type: 'USER', code: 'a' }] }),
     /more than one permission role/,
   );
-  const { rights, fieldRights } = buildPermissions({
+  const { rights } = buildPermissions({
     admins: [{ type: 'USER', code: 'admin' }],
-    verifiers: [{ type: 'GROUP', code: 'verifiers' }],
     editors: [{ type: 'GROUP', code: 'editors' }],
     readers: [{ type: 'GROUP', code: 'everyone' }],
   });
   assert.deepEqual(rights.map((r) => [r.entity.code, r.appEditable, r.recordEditable, r.recordDeletable]), [
     ['admin', true, true, true],
-    ['verifiers', false, true, false],
     ['editors', false, true, false],
     ['everyone', false, false, false],
   ]);
-  assert.deepEqual(fieldRights.map((f) => f.code), ['Last_Verified', 'Verified_By']);
-  assert.deepEqual(fieldRights[0].entities.map((e) => e.accessibility), ['WRITE', 'WRITE', 'READ', 'READ']);
 });

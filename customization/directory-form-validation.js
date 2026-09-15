@@ -72,9 +72,6 @@
       if (!/^[A-Z]{2}$/.test(record.State.value)) errors.State = 'Use the two-letter state code, e.g. AZ.';
     }
 
-    var start = record.Effective_Start && record.Effective_Start.value;
-    var end = record.Effective_End && record.Effective_End.value;
-    if (start && end && end < start) errors.Effective_End = 'Effective End cannot be before Effective Start.';
     return errors;
   }
 

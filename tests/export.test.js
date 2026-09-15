@@ -64,21 +64,18 @@ const records = [
 test('the export covers active stores only, sorted by district then store number', () => {
   const { rows, columns, summary } = buildExportRows(records, { config, today: TODAY });
   assert.deepEqual(rows.map((row) => row[0]), ['9001', '11101', '11134'], 'closed store excluded; 9001 before 11101');
-  assert.equal(columns.length, EXPORT_COLUMNS.length + 2);
-  assert.equal(columns.at(-2).header, 'Verified');
-  assert.deepEqual(summary, { activeStores: 3, completeRows: 2, incompleteRows: 1 });
+  assert.equal(columns.length, EXPORT_COLUMNS.length);
+  assert.equal(columns.at(-1).header, 'Director Phone', 'contact fields only: no Verified or Data Check column');
+  assert.deepEqual(summary, { activeStores: 3, completeRows: 2, incompleteRows: 1 }, 'gaps are still counted for the run log');
 });
 
-test('each row shows its verification state and what is missing', () => {
+test('rows carry the contact fields, with multi-select values joined', () => {
   const { rows } = buildExportRows(records, { config, today: TODAY });
-  const [central, unverified, complete] = rows;
-  assert.match(central.at(-2), /^2026-01-01 \(over 90 days old\)$/);
-  assert.equal(central.at(-1), 'Missing or invalid: District Manager Email');
-  assert.equal(unverified.at(-2), 'Not verified yet');
-  assert.equal(unverified.at(-1), 'Complete');
-  assert.equal(complete.at(-2), '2026-09-01');
+  const [, , complete] = rows;
+  assert.equal(complete.length, EXPORT_COLUMNS.length);
   assert.equal(complete[3], 'Prime, Lobster', 'multi-select values are joined');
   assert.deepEqual(complete.slice(5, 8), ['1 Power Rd', 'Mesa', 'AZ']);
+  assert.ok(!rows.flat().some((value) => /Not verified|Missing or invalid/.test(value)));
 });
 
 test('the workbook explains that it is a daily copy of Kintone', () => {

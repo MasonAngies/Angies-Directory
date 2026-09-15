@@ -4,7 +4,6 @@
 import {
   ACTIVE_REQUIRED,
   ALWAYS_REQUIRED,
-  DATE_FIELDS,
   EMAIL_FIELDS,
   EXTERNAL_ID_FIELDS,
   FIELD_CODES,
@@ -14,12 +13,10 @@ import {
   STATUS_VALUES,
   TRIMMED_TEXT_FIELDS,
   USER_FIELDS,
-  VERIFICATION_FIELDS,
 } from './fields.js';
 
 const EMAIL_PATTERN =
   /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$/;
-const DAY_MS = 86_400_000;
 
 export function isBlank(value) {
   if (value === null || value === undefined) return true;
@@ -49,23 +46,8 @@ export function isValidPhone(value) {
   return typeof value === 'string' && /^\d{3}-\d{3}-\d{4}$/.test(value);
 }
 
-export function isValidDate(value) {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
-}
-
-export function daysBetween(fromDate, toDate) {
-  return Math.round((Date.parse(`${toDate}T00:00:00Z`) - Date.parse(`${fromDate}T00:00:00Z`)) / DAY_MS);
-}
-
 export function todayIn(timeZone, now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
-}
-
-export function isEffectiveOn(record, asOfDate) {
-  const { Effective_Start: start, Effective_End: end } = record;
-  return (isBlank(start) || start <= asOfDate) && (isBlank(end) || end >= asOfDate);
 }
 
 // Converts a Kintone REST record into plain values: strings for most fields,
@@ -85,9 +67,9 @@ export function fromKintoneRecord(record) {
   return plain;
 }
 
-// Issues with blocksApproval=true keep an Active record from being used by
-// consumers (AC-03). Warnings that do not block are review items only.
-export function validateRecord(record, { config, today }) {
+// Issues with blocksApproval=true keep an Active record from being handed to
+// a consumer. Warnings that do not block are review items only.
+export function validateRecord(record, { config }) {
   const issues = [];
   const add = (code, severity, field, message, blocksApproval = severity !== 'warning') =>
     issues.push({ code, severity, field, message, blocksApproval });
@@ -146,30 +128,6 @@ export function validateRecord(record, { config, today }) {
     const value = record[field];
     if (typeof value === 'string' && value.trim() !== '' && value !== value.trim()) {
       add('UNTRIMMED_VALUE', 'warning', field, `${label(field)} has leading or trailing spaces.`);
-    }
-  }
-
-  for (const field of DATE_FIELDS) {
-    if (!isBlank(record[field]) && !isValidDate(record[field])) add('INVALID_DATE', 'error', field, `${label(field)} must be a YYYY-MM-DD date.`);
-  }
-  const { Effective_Start: start, Effective_End: end } = record;
-  if (isValidDate(start) && isValidDate(end) && end < start) {
-    add('EFFECTIVE_DATES_INVALID', 'error', 'Effective_End', 'Effective End is before Effective Start.');
-  }
-
-  if (active) {
-    for (const field of VERIFICATION_FIELDS) {
-      if (isBlank(record[field])) {
-        add('VERIFICATION_MISSING', 'warning', field, `${label(field)} is required before an Active record is approved for use.`, true);
-      }
-    }
-    if (isValidDate(record.Last_Verified) && today) {
-      const age = daysBetween(record.Last_Verified, today);
-      if (age > config.verificationMaxAgeDays) {
-        add('VERIFICATION_STALE', 'warning', 'Last_Verified', `Last verified ${age} days ago (limit ${config.verificationMaxAgeDays}).`);
-      } else if (age < 0) {
-        add('VERIFICATION_DATE_IN_FUTURE', 'warning', 'Last_Verified', 'Last Verified is in the future.');
-      }
     }
   }
 

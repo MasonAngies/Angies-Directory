@@ -30,12 +30,11 @@ test('the import template headers are exactly the field codes (AC-10)', () => {
 
 test('rows become records, splitting multi-value cells on newlines', () => {
   const values = Object.fromEntries(FIELD_CODES.map((code) => [code, '']));
-  Object.assign(values, { Store_Number: '11101', Concept: 'Prime\nLobster', Record_Owner: 'owner@example.com', Verified_By: '' });
+  Object.assign(values, { Store_Number: '11101', Concept: 'Prime\nLobster' });
   const [record] = rowsToRecords([FIELD_CODES, FIELD_CODES.map((code) => values[code])]);
   assert.equal(record.$row, 2);
   assert.deepEqual(record.Concept, ['Prime', 'Lobster']);
-  assert.deepEqual(record.Record_Owner, ['owner@example.com']);
-  assert.deepEqual(record.Verified_By, []);
+  assert.equal(record.Store_Number, '11101');
 });
 
 test('header problems and ragged rows are rejected', () => {

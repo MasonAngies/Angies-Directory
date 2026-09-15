@@ -2,22 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { loadDirectoryConfig } from '../src/config.js';
-import {
-  findCrossRecordIssues,
-  fromKintoneRecord,
-  isEffectiveOn,
-  isValidDate,
-  isValidEmail,
-  todayIn,
-  validateRecord,
-} from '../src/directory/rules.js';
+import { findCrossRecordIssues, fromKintoneRecord, isValidEmail, todayIn, validateRecord } from '../src/directory/rules.js';
 import { kintoneRecord, plainRecord, TODAY } from './fixtures/records.js';
 
 const config = loadDirectoryConfig();
 const check = (overrides) => validateRecord(plainRecord(overrides), { config, today: TODAY });
 const codes = (issues) => issues.map((issue) => `${issue.code}:${issue.field}`);
 
-test('a complete, verified Active record has no issues', () => {
+test('a complete Active record has no issues', () => {
   assert.deepEqual(check({}), []);
 });
 
@@ -38,11 +30,8 @@ test('Active stores need contact and district fields; other statuses do not', ()
   for (const status of ['Inactive', 'Opening', 'Closed']) assert.deepEqual(check({ ...missing, Active_Status: status }), [], status);
 });
 
-test('record owner, store name, and status are always required', () => {
-  assert.deepEqual(codes(check({ Record_Owner: [], Store_Name: ' ', Active_Status: 'Closed' })), [
-    'REQUIRED_FIELD_MISSING:Store_Name',
-    'REQUIRED_FIELD_MISSING:Record_Owner',
-  ]);
+test('store name and status are always required', () => {
+  assert.deepEqual(codes(check({ Store_Name: ' ', Active_Status: 'Closed' })), ['REQUIRED_FIELD_MISSING:Store_Name']);
 });
 
 test('email syntax is validated conservatively and never repaired', () => {
@@ -69,32 +58,6 @@ test('phones and states are optional but must be well formed', () => {
     'INVALID_PHONE:District_Manager_Phone',
     'INVALID_STATE:State',
   ]);
-});
-
-test('dates must be real and effective ranges ordered', () => {
-  assert.equal(isValidDate('2026-02-30'), false);
-  assert.equal(isValidDate('2028-02-29'), true);
-  assert.deepEqual(codes(check({ Effective_Start: '2026-02-30' })), ['INVALID_DATE:Effective_Start']);
-  assert.deepEqual(codes(check({ Effective_Start: '2026-09-10', Effective_End: '2026-09-01' })), ['EFFECTIVE_DATES_INVALID:Effective_End']);
-});
-
-test('missing verification blocks approval; stale verification is a non-blocking warning', () => {
-  const missing = check({ Last_Verified: '', Verified_By: [] });
-  assert.deepEqual(codes(missing), ['VERIFICATION_MISSING:Last_Verified', 'VERIFICATION_MISSING:Verified_By']);
-  assert.ok(missing.every((issue) => issue.severity === 'warning' && issue.blocksApproval));
-
-  assert.deepEqual(check({ Last_Verified: '2026-06-17' }), [], 'exactly 90 days is still current');
-  const stale = check({ Last_Verified: '2026-06-16' });
-  assert.deepEqual(codes(stale), ['VERIFICATION_STALE:Last_Verified']);
-  assert.equal(stale[0].blocksApproval, false);
-  assert.deepEqual(codes(check({ Last_Verified: '2026-09-20' })), ['VERIFICATION_DATE_IN_FUTURE:Last_Verified']);
-});
-
-test('effective dates are inclusive and optional', () => {
-  assert.equal(isEffectiveOn(plainRecord(), TODAY), true);
-  assert.equal(isEffectiveOn(plainRecord({ Effective_Start: TODAY, Effective_End: TODAY }), TODAY), true);
-  assert.equal(isEffectiveOn(plainRecord({ Effective_Start: '2026-09-16' }), TODAY), false);
-  assert.equal(isEffectiveOn(plainRecord({ Effective_End: '2026-09-14' }), TODAY), false);
 });
 
 test('cross-record checks find duplicates and inconsistent spellings', () => {
@@ -126,7 +89,6 @@ test('one phone recorded for two different people is flagged; the same person ac
 
 test('Kintone records convert to plain values', () => {
   const plain = fromKintoneRecord(kintoneRecord({ Concept: ['Prime', 'Pizza'] }, { id: '7', revision: '12' }));
-  assert.deepEqual(plain.Record_Owner, ['owner']);
   assert.deepEqual(plain.Concept, ['Prime', 'Pizza']);
   assert.equal(plain.$id, '7');
   assert.equal(plain.$revision, '12');

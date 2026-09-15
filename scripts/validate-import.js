@@ -13,7 +13,7 @@ import { loadDirectoryConfig, loadEnvConfig, withLiveOptions } from '../src/conf
 import { parseCsv, toCsv } from '../src/csv.js';
 import { FIELD_CODES } from '../src/directory/fields.js';
 import { rowsToRecords } from '../src/directory/import-csv.js';
-import { findCrossRecordIssues, fromKintoneRecord, todayIn, validateRecord } from '../src/directory/rules.js';
+import { findCrossRecordIssues, fromKintoneRecord, validateRecord } from '../src/directory/rules.js';
 import { createKintoneClient } from '../src/kintone/client.js';
 
 const comparable = (value) => (Array.isArray(value) ? [...value].sort().join('\n') : String(value ?? ''));
@@ -28,7 +28,6 @@ async function main() {
 
   let config = loadDirectoryConfig();
   const fileRecords = rowsToRecords(parseCsv(readFileSync(positionals[0], 'utf8')));
-  const today = todayIn(config.timeZone);
 
   let liveRecords = [];
   if (!values.offline) {
@@ -43,7 +42,7 @@ async function main() {
   const where = (record) => (record.$row ? `row ${record.$row}` : `live record ${record.$id}`);
   const issues = [];
   for (const record of fileRecords) {
-    for (const issue of validateRecord(record, { config, today })) issues.push({ location: where(record), storeNumber: record.Store_Number, ...issue });
+    for (const issue of validateRecord(record, { config })) issues.push({ location: where(record), storeNumber: record.Store_Number, ...issue });
   }
   // Duplicates are checked across the file plus live records the file does not replace.
   const combined = [...fileRecords, ...liveRecords.filter((record) => !fileStores.has(record.Store_Number))];

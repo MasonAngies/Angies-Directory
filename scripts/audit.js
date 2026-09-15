@@ -41,16 +41,16 @@ try {
   const issuesPath = join(values.out, `audit-${stamp}-issues.csv`);
   writeFileSync(issuesPath, toCsv([issueColumns, ...report.issues.map((issue) => issueColumns.map((c) => issue[c]))], { guardFormulas: true }));
 
-  // Only Active records with no approval-blocking issues belong in approved exports.
-  const approvedIds = new Set(report.approvedRecordIds);
-  const approvedPath = join(values.out, `approved-directory-${stamp}.csv`);
-  writeFileSync(approvedPath, toCsv([FIELD_CODES, ...records.filter((r) => approvedIds.has(r.$id.value)).map(recordToCsvCells)], { guardFormulas: true }));
+  // Active records with no blocking issues: the list that is safe to share.
+  const completeIds = new Set(report.completeRecordIds);
+  const completePath = join(values.out, `complete-directory-${stamp}.csv`);
+  writeFileSync(completePath, toCsv([FIELD_CODES, ...records.filter((r) => completeIds.has(r.$id.value)).map(recordToCsvCells)], { guardFormulas: true }));
 
   if (!values['no-state-update']) writeFileSync(statePath, `${JSON.stringify(report.nextState, null, 2)}\n`);
 
   const { summary } = report;
   console.log(`Directory audit ${summary.auditedAt} (today ${summary.today})`);
-  console.log(`Records: ${summary.totalRecords} total, ${summary.activeRecords} active, ${summary.activeApprovedForUse} active and approved for use`);
+  console.log(`Records: ${summary.totalRecords} total, ${summary.activeRecords} active, ${summary.activeComplete} active with complete data`);
   console.log(`By status: ${JSON.stringify(summary.recordsByStatus)}`);
   console.log(`Active by district: ${JSON.stringify(summary.activeByDistrict)}`);
   console.log(`Issues: ${JSON.stringify(summary.issuesBySeverity)}`);
@@ -58,7 +58,7 @@ try {
     console.log(`  [${issue.severity}] ${issue.code} store ${issue.storeNumber || '(blank)'} (record ${issue.recordId}): ${issue.message}`);
   }
   console.log(`Changes since last audit: ${summary.changesSinceLastAudit ?? 'n/a (first audit)'}`);
-  console.log(`Reports: ${reportPath}\n         ${issuesPath}\n         ${approvedPath}`);
+  console.log(`Reports: ${reportPath}\n         ${issuesPath}\n         ${completePath}`);
   process.exitCode = exitCodeFor(report);
 } catch (error) {
   console.error(`Audit failed: ${error.message}`);

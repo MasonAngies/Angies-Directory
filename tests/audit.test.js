@@ -12,8 +12,8 @@ const records = [
   kintoneRecord({ Store_Number: '11101', Toast_Location_ID: 'T-1' }, { id: '1', revision: '2' }),
   kintoneRecord({ Store_Number: '11102', Store_Email: 'bad@', District: 'West', Toast_Location_ID: 'T-1' }, { id: '2', revision: '5' }),
   kintoneRecord({ Store_Number: '11103', Active_Status: 'Closed', Store_Email: '' }, { id: '3', revision: '1' }),
-  kintoneRecord({ Store_Number: '11104', Last_Verified: '2026-01-01', Store_Email: 'store4@example.com' }, { id: '4', revision: '1' }),
-  kintoneRecord({ Store_Number: '11105', Verified_By: [], Store_Email: 'store5@example.com' }, { id: '5', revision: '1' }),
+  kintoneRecord({ Store_Number: '11104', Store_Email: 'store4@example.com' }, { id: '4', revision: '1' }),
+  kintoneRecord({ Store_Number: '11105', Store_Email: 'store5@example.com', Store_Manager_Phone: '555-0123' }, { id: '5', revision: '1' }),
 ];
 
 test('audit summarizes counts and detects every issue class (AC-08)', () => {
@@ -27,14 +27,13 @@ test('audit summarizes counts and detects every issue class (AC-08)', () => {
     '11101:DUPLICATE_EXTERNAL_ID',
     '11102:DUPLICATE_EXTERNAL_ID',
     '11102:INVALID_EMAIL',
-    '11104:VERIFICATION_STALE',
-    '11105:VERIFICATION_MISSING',
+    '11105:INVALID_PHONE',
   ]) {
     assert.ok(found.includes(expected), expected);
   }
   assert.equal(report.issues[0].severity, 'critical', 'critical issues sort first');
-  // 11101 and 11102 share a Toast ID, 11105 is unverified; 11104 is only stale.
-  assert.deepEqual(report.approvedRecordIds, ['4']);
+  // 11101 and 11102 share a Toast ID and 11105 has a bad phone; 11104 is clean.
+  assert.deepEqual(report.completeRecordIds, ['4']);
   assert.equal(exitCodeFor(report), 2);
   assert.equal(report.summary.changesSinceLastAudit, null);
 });
@@ -50,23 +49,23 @@ test('audit reports records added, modified, and removed since the last run', ()
     ['modified:11102', 'added:11103', 'removed:11109'],
   );
   const modified = report.changes[0];
-  assert.deepEqual([modified.previousRevision, modified.revision, modified.recordOwner, modified.verifiedBy], ['4', '5', 'owner', 'verifier']);
+  assert.deepEqual([modified.previousRevision, modified.revision, modified.updatedBy], ['4', '5', 'editor']);
   assert.deepEqual(Object.keys(report.nextState.records), ['1', '2', '3']);
 });
 
-test('district spelling conflicts are errors but do not pull stores from approved exports', () => {
+test('district spelling conflicts are errors but do not mark stores unusable', () => {
   const report = runAudit(
     [kintoneRecord({ District: 'Central' }, { id: '1' }), kintoneRecord({ Store_Number: '11102', Store_Email: 'b@example.com', District: 'central' }, { id: '2' })],
     { config, today: TODAY, now },
   );
   assert.deepEqual(report.issues.map((issue) => issue.code), ['DISTRICT_SPELLING_CONFLICT', 'DISTRICT_SPELLING_CONFLICT']);
-  assert.deepEqual(report.approvedRecordIds, ['1', '2']);
+  assert.deepEqual(report.completeRecordIds, ['1', '2']);
   assert.equal(exitCodeFor(report), 1);
 });
 
 test('exit codes: errors only is 1, warnings only is 0', () => {
   const errorsOnly = runAudit([kintoneRecord({ Store_Email: 'bad@' })], { config, today: TODAY, now });
   assert.equal(exitCodeFor(errorsOnly), 1);
-  const warningsOnly = runAudit([kintoneRecord({ Last_Verified: '2026-01-01' })], { config, today: TODAY, now });
+  const warningsOnly = runAudit([kintoneRecord({ Store_Name: 'Trailing space ' })], { config, today: TODAY, now });
   assert.equal(exitCodeFor(warningsOnly), 0);
 });

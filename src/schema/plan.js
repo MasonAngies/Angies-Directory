@@ -168,11 +168,10 @@ export function planViews(desiredViews, currentViews, retiredNames = []) {
 
 const RIGHTS = {
   admins: { appEditable: true, recordViewable: true, recordAddable: true, recordEditable: true, recordDeletable: true, recordImportable: true, recordExportable: true },
-  verifiers: { appEditable: false, recordViewable: true, recordAddable: false, recordEditable: true, recordDeletable: false, recordImportable: false, recordExportable: true },
   editors: { appEditable: false, recordViewable: true, recordAddable: true, recordEditable: true, recordDeletable: false, recordImportable: false, recordExportable: true },
   readers: { appEditable: false, recordViewable: true, recordAddable: false, recordEditable: false, recordDeletable: false, recordImportable: false, recordExportable: false },
 };
-const ROLE_ORDER = ['admins', 'verifiers', 'editors', 'readers'];
+const ROLE_ORDER = ['admins', 'editors', 'readers'];
 
 // Kintone applies the first matching entry, so an entity may hold only one role.
 export function buildPermissions(permissions) {
@@ -191,33 +190,17 @@ export function buildPermissions(permissions) {
   }
   if (!entries.some((entry) => entry.role === 'admins')) throw new Error('permissions.admins must list at least one administrator');
 
-  const rights = entries.map(({ role, entity }) => ({ entity, includeSubs: false, ...RIGHTS[role] }));
-  // Only verifiers and admins may record verification when verifiers are configured.
-  const fieldRights = permissions.verifiers?.length
-    ? ['Last_Verified', 'Verified_By'].map((code) => ({
-        code,
-        entities: entries.map(({ role, entity }) => ({
-          accessibility: role === 'admins' || role === 'verifiers' ? 'WRITE' : 'READ',
-          entity,
-          includeSubs: false,
-        })),
-      }))
-    : [];
-  return { rights, fieldRights };
+  return { rights: entries.map(({ role, entity }) => ({ entity, includeSubs: false, ...RIGHTS[role] })) };
 }
 
 const projectRights = (rights) =>
   (rights ?? []).map(({ entity, includeSubs, ...flags }) => ({ entity: `${entity.type}:${entity.code}`, includeSubs: Boolean(includeSubs), ...flags }));
 
-export function planPermissions(permissions, currentAppRights, currentFieldRights) {
+export function planPermissions(permissions, currentAppRights) {
   if (!permissions?.apply) return { managed: false, changed: false };
-  const { rights, fieldRights } = buildPermissions(permissions);
+  const { rights } = buildPermissions(permissions);
   const appChanged = JSON.stringify(projectRights(rights)) !== JSON.stringify(projectRights(currentAppRights));
-  const managedCodes = new Set(fieldRights.map((entry) => entry.code));
-  const keptFieldRights = (currentFieldRights ?? []).filter((entry) => !managedCodes.has(entry.code));
-  const nextFieldRights = [...keptFieldRights, ...fieldRights];
-  const fieldChanged = JSON.stringify(nextFieldRights) !== JSON.stringify(currentFieldRights ?? []);
-  return { managed: true, changed: appChanged || fieldChanged, appChanged, fieldChanged, rights, fieldRights: nextFieldRights };
+  return { managed: true, changed: appChanged, appChanged, rights };
 }
 
 export async function deployAndWait(client, appId, { timeoutMs = 180_000, pollMs = 2_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {

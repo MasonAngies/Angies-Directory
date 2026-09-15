@@ -8,7 +8,7 @@ Named owners (fill in before production):
 | Kintone app administrator | _TBD_ |
 | Automation code in this repo | _TBD_ |
 | API tokens and secret rotation | _TBD_ |
-| Verifiers (second person for material changes) | _TBD_ |
+| Second reviewer for material changes | _TBD_ |
 
 ## Routine checks
 
@@ -16,26 +16,25 @@ Run `npm run audit` daily or weekly (it only reads from Kintone). It prints a su
 
 - `audit-<time>.json`: full report, including changes since the previous audit.
 - `audit-<time>-issues.csv`: one row per issue.
-- `approved-directory-<time>.csv`: Active stores that are complete and verified. This is the only export to share as "approved".
+- `complete-directory-<time>.csv`: Active stores whose contact data is complete and valid. This is the list that is safe to share.
 
 | Exit code | Meaning | Response |
 |---|---|---|
 | 2 | Critical: duplicate Store Number or external ID | Same day. See [Duplicates](#duplicate-store-number-or-external-id) |
 | 1 | Errors: missing/invalid required data, bad dates, district spelling conflicts, shared store mailbox | Fix within the review cycle |
-| 0 | Clean, or warnings only (stale verification, untidy spacing) | Review warnings weekly |
+| 0 | Clean, or warnings only (untidy spacing, one phone under two names) | Review warnings weekly |
 | 3 | The audit could not run (credentials, network, Kintone outage) | Check `.env` and Kintone status; re-run |
 
-Inside Kintone, the `Needs Verification` view lists Active stores never verified or verified more than 90 days ago. The audit is the only complete exception list.
+The audit is the only complete exception list; the Kintone views show the directory itself, not its gaps.
 
 ## Fixing a record
 
 1. Open the record by exact Store Number.
 2. Compare it with the approved organizational roster and the Toast/7shifts source.
-3. Correct the data and write a **Change Reason**.
+3. Correct the data. Note what changed in **Routing Notes** when it needs explaining; Kintone's record history keeps who changed what.
 4. For identity, status, district, email, manager, or external-ID changes, have a second authorized person check the change.
-5. The verifier updates **Last Verified** and **Verified By**.
-6. Re-run `npm run audit` and confirm the exception is gone.
-7. After significant bulk changes, run `npm run backup`.
+5. Re-run `npm run audit` and confirm the exception is gone.
+6. After significant bulk changes, run `npm run backup`.
 
 ## Duplicate Store Number or external ID
 
@@ -43,7 +42,7 @@ Kintone blocks duplicate Store Numbers and populated Toast/7shifts IDs on save, 
 
 1. Stop any consumer that depends on the affected stores; lookups already return `DUPLICATE_STORE` for them.
 2. Identify which record is correct from the roster or external system.
-3. Correct or retire the wrong record (set it to Inactive/Closed with a Change Reason; do not reuse its Store Number).
+3. Correct or retire the wrong record (set it to Inactive/Closed and say why in Routing Notes; do not reuse its Store Number).
 4. Re-run the audit and confirm exit code 0 or 1.
 
 ## Adding a district
@@ -63,11 +62,11 @@ Add the value to `concepts` in `config/directory.config.json`, then run `npm run
 ## Importing records
 
 1. `npm run backup` (before any initial or bulk import).
-2. Fill a copy of `templates/store_directory_import_template.csv`. Multi-value cells (Concept, Record Owner, Verified By) put one value per line inside the cell. User fields take Kintone login names. Dates are `YYYY-MM-DD`.
-3. `npm run import:validate -- stores.csv` and fix everything reported as critical or error. Missing verification is a warning at import time; those stores stay out of approved exports until verified.
+2. Fill a copy of `templates/store_directory_import_template.csv`. Concept holds one value per line inside the cell. Phones use `480-555-0123`.
+3. `npm run import:validate -- stores.csv` and fix everything reported as critical or error.
 4. Import in Kintone: App > ... > Import from File. Map columns by field code and choose **Store Number** as the key for updates.
 5. `npm run import:validate -- stores.csv --reconcile` must report that every row matches Kintone exactly.
-6. A second person verifies the records against the approved source and sets Last Verified and Verified By.
+6. A second person checks the imported records against the approved source.
 7. `npm run audit`, then `npm run backup`.
 
 ## Lookup reason codes (for consumers)
@@ -79,7 +78,7 @@ Add the value to `concepts` in `config/directory.config.json`, then run `npm run
 | `STORE_NOT_FOUND` | No exact match | Confirm the store exists; add it through the import procedure |
 | `DUPLICATE_STORE` | More than one match | Follow [Duplicates](#duplicate-store-number-or-external-id) |
 | `STORE_NOT_ACTIVE` | Status not Active or outside effective dates | Confirm status/dates with the record owner |
-| `DIRECTORY_INCOMPLETE` | Required data missing/invalid or not verified; `issues` lists the fields | Fix the record, then verify it |
+| `DIRECTORY_INCOMPLETE` | Required contact data missing or invalid; `issues` lists the fields | Fix the record |
 | `KINTONE_UNAVAILABLE` | Kintone failed after bounded retries (or auth failed) | Check Kintone status and token; retry later. Never substitute a hard-coded list |
 
 ## Schema changes
@@ -109,7 +108,7 @@ It trims identifiers, requires Active-store contact fields, checks email syntax 
 
 ## Daily SharePoint export
 
-Other departments read `Angies Store Directory.xlsx` in SharePoint, rebuilt from Kintone every morning. Only the contact fields are exported, plus a **Verified** and a **Data Check** column. The file is replaced in place, so its link and permissions stay put, and edits made in the file are overwritten the next morning.
+Other departments read `Angies Store Directory.xlsx` in SharePoint, rebuilt from Kintone every morning. Only the contact fields are exported; verification state and gaps stay in the audit. The file is replaced in place, so its link and permissions stay put, and edits made in the file are overwritten the next morning.
 
 ### One-time setup
 
