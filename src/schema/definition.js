@@ -101,19 +101,11 @@ export function buildLayout() {
 }
 
 const ACTIVE = 'Active_Status in ("Active")';
-const EXCEPTION_COLUMNS = ['Store_Number', 'Store_Name', 'District', 'Record_Owner', 'Updated_datetime'];
 
-// Kintone view filters cannot mix AND with OR, and formulas cannot read Link or
-// User selection fields, so a combined "any required field blank" view or a
-// computed missing-data column is not possible. Per the spec's fallback, each
-// gap gets its own view. `npm run audit` is the complete combined report.
-const gapView = (name, condition, extraColumns) => ({
-  name,
-  fields: [...EXCEPTION_COLUMNS, ...extraColumns],
-  filterCond: `${ACTIVE} and ${condition}`,
-});
-
-// Record_Owner and Store_Name are required by Kintone itself, so they cannot be blank.
+// The per-gap "Exceptions - ..." views were retired once the initial data was
+// filled in (owner decision 2026-09-15). Kintone views cannot mix AND with OR,
+// so there is no single combined exceptions view: `npm run audit` is the
+// exception report.
 export function buildViews() {
   const list = [
     {
@@ -136,13 +128,6 @@ export function buildViews() {
       filterCond: `${ACTIVE} and Last_Verified < FROM_TODAY(-90, DAYS)`,
       sort: 'Last_Verified asc',
     },
-    gapView('Needs Verification - No Verifier', 'Verified_By in ("")', ['Last_Verified']),
-    gapView('Exceptions - Missing District', 'District = ""', []),
-    gapView('Exceptions - Missing Store Email', 'Store_Email = ""', ['Store_Email']),
-    gapView('Exceptions - Missing Store Manager Name', 'Store_Manager_Name = ""', ['Store_Manager_Email']),
-    gapView('Exceptions - Missing Store Manager Email', 'Store_Manager_Email = ""', ['Store_Manager_Name']),
-    gapView('Exceptions - Missing District Manager Name', 'District_Manager_Name = ""', ['District_Manager_Email']),
-    gapView('Exceptions - Missing District Manager Email', 'District_Manager_Email = ""', ['District_Manager_Name']),
     {
       name: 'Inactive and Closed',
       fields: ['Store_Number', 'Store_Name', 'District', 'Active_Status', 'Effective_End'],
@@ -161,7 +146,17 @@ export function buildViews() {
 
 // Views this project created earlier and has since replaced. Setup removes only
 // these names; views anyone else creates are always preserved.
-export const RETIRED_VIEWS = ['Needs Verification - Over 90 Days', 'Needs Verification - Never Verified'];
+export const RETIRED_VIEWS = [
+  'Needs Verification - Over 90 Days',
+  'Needs Verification - Never Verified',
+  'Needs Verification - No Verifier',
+  'Exceptions - Missing District',
+  'Exceptions - Missing Store Email',
+  'Exceptions - Missing Store Manager Name',
+  'Exceptions - Missing Store Manager Email',
+  'Exceptions - Missing District Manager Name',
+  'Exceptions - Missing District Manager Email',
+];
 
 export function buildDefinition(config) {
   const fields = fieldProperties(config);

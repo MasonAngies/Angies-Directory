@@ -25,7 +25,7 @@ Run `npm run audit` daily or weekly (it only reads from Kintone). It prints a su
 | 0 | Clean, or warnings only (stale verification, untidy spacing) | Review warnings weekly |
 | 3 | The audit could not run (credentials, network, Kintone outage) | Check `.env` and Kintone status; re-run |
 
-The Kintone views `Needs Verification` and `Exceptions - ...` show the same gaps inside the app.
+Inside Kintone, the `Needs Verification` view lists Active stores never verified or verified more than 90 days ago. The audit is the only complete exception list.
 
 ## Fixing a record
 

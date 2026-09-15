@@ -33,8 +33,8 @@ npm run schema:plan         # dry run: what setup would change in the app
 | `District` | Drop-down | Single-line text, strict exact matching | Owner decision: new districts need no schema change (see [Adding a district](docs/RUNBOOK.md#adding-a-district)) |
 | Extra fields | Not in spec | Street Address, City, State; Store Manager Phone; District Manager Phone; Director Name/Email/Phone; plus a `Leadership Contacts` view | Owner request (2026-09-15). All optional. Phones must look like `480-555-0123` (the form script reformats other layouts); State is a two-letter code |
 | Store Number format | "canonical" (undefined) | Digits only, 1-6 digits (e.g. `11101`), exact match | Owner decision; change `storeNumberPattern` in `config/directory.config.json` and the customization file together |
-| Exception views | One combined view with a missing-data column | One view per gap (`Exceptions - ...`) | Kintone views cannot mix AND with OR, and formulas cannot read Link or User fields. This is the spec's own fallback. `npm run audit` is the combined report |
-| Needs Verification | Blank or older than 90 days | `Active and Last_Verified < 90 days ago`, plus `Needs Verification - No Verifier` | Kintone treats blank dates as older, so one filter covers both (confirmed live) |
+| Exception views | One combined view with a missing-data column | None; `npm run audit` is the exception report | Kintone views cannot mix AND with OR, and formulas cannot read Link or User fields. Per-gap `Exceptions - ...` views were used during the initial load, then retired by the owner (2026-09-15) |
+| Needs Verification | Blank or older than 90 days | `Active and Last_Verified < 90 days ago` | Kintone treats blank dates as older, so one filter covers both (confirmed live) |
 | Help text | Under Store Number / Store Email | Small label rows beneath those fields (and District) | Kintone has no per-field help text API |
 | Governance group | May be collapsed | Expanded | Editors must fill Change Reason on every material change |
 | Permissions | Admin / editor / reader | Built and tested, **not applied** | Owner decision until Kintone user/group codes are supplied |

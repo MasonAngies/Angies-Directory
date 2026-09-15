@@ -88,7 +88,10 @@ test('views cover the spec and never mix AND with OR (AC-05)', () => {
   for (const name of ['Active Directory', 'Needs Verification', 'Inactive and Closed', 'External ID Mapping']) {
     assert.ok(views[name], name);
   }
-  assert.ok(Object.keys(views).filter((name) => name.startsWith('Exceptions - ')).length >= 5);
+  assert.deepEqual(Object.keys(views).filter((name) => name.startsWith('Exceptions - ')), [], 'per-gap views are retired');
+  for (const name of ['Exceptions - Missing Store Email', 'Needs Verification - No Verifier']) {
+    assert.ok(definition.retiredViews.includes(name), name);
+  }
   assert.equal(views['Active Directory'].filterCond, 'Active_Status in ("Active")');
   assert.equal(views['Active Directory'].sort, 'District asc, Store_Number asc');
   const known = new Set([...Object.keys(SPEC_FIELDS), 'Updated_datetime']);
