@@ -121,9 +121,7 @@ Other departments read `Angies Store Directory.xlsx` in SharePoint, rebuilt from
 3. **Create the Modal secret** with the Kintone values (a View-records-only token is enough) and the Microsoft ones:
    `modal secret create angies-store-directory KINTONE_BASE_URL=... KINTONE_APP_ID=... KINTONE_API_TOKEN=... GRAPH_TENANT_ID=... GRAPH_CLIENT_ID=... GRAPH_CLIENT_SECRET=... SHAREPOINT_HOST=... SHAREPOINT_SITE_PATH=... SHAREPOINT_FOLDER=...`
 4. **Deploy:** `modal deploy modal_app.py`, then `modal run modal_app.py::daily_export` for a first run.
-5. **Trigger it daily.** The workspace allows five scheduled functions and all five are taken, so an existing daily job calls this one, the same way food cost calls DC inventory:
-   `modal.Function.from_name("angies-store-directory", "daily_export").remote()`
-   If a slot frees up, uncomment the `schedule=` line in `modal_app.py` and drop the caller.
+5. **Check the schedule.** Deploying registers the daily run at 13:45 UTC (6:45 AM Arizona, which has no DST). Change the `modal.Cron` line in `modal_app.py` and redeploy to move it.
 6. **Share the file** with the departments that need it (read-only), and point them at the file, not the folder.
 
 ### Checking and fixing it

@@ -4,14 +4,8 @@ The directory lives in Kintone, but other departments have no Kintone access, so
 this job rebuilds one Excel file and replaces it in SharePoint each morning. The
 file is a copy for reading: Kintone stays the system of record.
 
-This function is deliberately NOT scheduled. The workspace caps scheduled
-functions at five and all five are in use, so an existing daily job calls this
-one instead -- the same arrangement food cost uses for DC inventory:
-
-    modal.Function.from_name("angies-store-directory", "daily_export").remote()
-
-If a schedule slot frees up, uncomment the schedule below and drop the caller.
-Arizona has no DST, so 13:15 UTC = 6:15 AM Arizona.
+Schedules are in UTC. Arizona has no DST, so 13:45 UTC = 6:45 AM Arizona --
+after the overnight pipelines, so the file reflects any early-morning edits.
 
 Deploy:   modal deploy modal_app.py
 Test now: modal run modal_app.py::daily_export
@@ -47,8 +41,7 @@ image = (
 secret = modal.Secret.from_name("angies-store-directory")
 
 
-@app.function(image=image, secrets=[secret], timeout=900)
-# @app.function(image=image, secrets=[secret], schedule=modal.Cron("15 13 * * *"), timeout=900)
+@app.function(image=image, secrets=[secret], schedule=modal.Cron("45 13 * * *"), timeout=900)
 def daily_export() -> None:
     """Rebuild the workbook and replace the SharePoint copy.
 
@@ -65,4 +58,5 @@ def daily_export() -> None:
 
 @app.local_entrypoint()
 def main() -> None:
+    """`modal run modal_app.py` runs the export once, outside the schedule."""
     daily_export.remote()
