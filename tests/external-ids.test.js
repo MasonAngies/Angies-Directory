@@ -78,13 +78,27 @@ test('the alert names each item, the fills, and says the file still went out', (
     [record({ Toast_Location_ID: 'other-guid' }), record({ $id: '2', Store_Number: '99999', Store_Name: 'Ghost' })],
     [dbStore(), dbStore({ store_number: '11106', store_name: 'Litchfield & Waddell' })],
   );
-  const alert = buildSyncAlert(plan, { applied: plan.fills });
+  const alert = buildSyncAlert(plan, { applied: plan.fills, kintoneUrl: 'https://example.kintone.com/k/897/' });
   assert.match(alert.subject, /^Store directory: 3 items need attention$/);
-  assert.match(alert.text, /Store 11101: Toast_Location_ID is "other-guid" in the directory but "guid-1" in the database/);
-  assert.match(alert.text, /Store 11106 \(Litchfield & Waddell\) is active in the database but is not in the directory/);
-  assert.match(alert.text, /Store 99999 \(Ghost\) is Active in the directory but not in the database/);
-  assert.match(alert.text, /Filled in automatically: 11101 SevenShifts_Location_ID/);
+  assert.match(alert.text, /Store 11101 — IDs disagree: Toast Location ID — directory: other-guid; database: guid-1/);
+  assert.match(alert.text, /Store 11106 — Not in the directory: Litchfield & Waddell is active in the database/);
+  assert.match(alert.text, /Store 99999 — Not in the database: Ghost is Active in the directory/);
+  assert.match(alert.text, /Filled in automatically: 11101: SevenShifts Location ID = 216941/);
   assert.match(alert.text, /published as usual/);
+});
+
+test('the HTML body is a table, with values escaped and a link into Kintone', () => {
+  const plan = planExternalIdSync(
+    [record({ Store_Name: 'Tom & Jerry <b>', Toast_Location_ID: 'other-guid', SevenShifts_Location_ID: '216941' })],
+    [dbStore({ store_number: '11106', store_name: 'Litchfield & Waddell' })],
+  );
+  const { html } = buildSyncAlert(plan, { kintoneUrl: 'https://example.kintone.com/k/897/' });
+  assert.match(html, /<th[^>]*>Store<\/th>/);
+  assert.match(html, /<th[^>]*>What to do<\/th>/);
+  assert.equal((html.match(/<tr>/g) ?? []).length, 2, 'one row per finding');
+  assert.match(html, /Tom &amp; Jerry &lt;b&gt;/, 'store names are escaped, not injected');
+  assert.ok(!html.includes('<b>'), 'raw markup from data never reaches the body');
+  assert.match(html, /<a href="https:\/\/example\.kintone\.com\/k\/897\/"/);
 });
 
 test('one item reads as singular', () => {

@@ -94,7 +94,11 @@ test('missing credentials are reported by name, never by value', () => {
   assert.equal(config.folder, '');
 });
 
-test('sendMail posts a plain-text message from the configured mailbox', async () => {
+test('sendMail posts from the configured mailbox, preferring the HTML body', async () => {
+  const withHtml = setup([token(), json(202, undefined)]);
+  await withHtml.client.sendMail({ sender: 'ops@example.com', to: ['a@example.com'], subject: 'S', text: 'plain', html: '<p>rich</p>' });
+  assert.deepEqual(JSON.parse(withHtml.calls[1].init.body).message.body, { contentType: 'HTML', content: '<p>rich</p>' });
+
   const { client, calls } = setup([token(), json(202, undefined)]);
   await client.sendMail({ sender: 'ops@example.com', to: ['a@example.com', 'b@example.com'], subject: 'Subject', text: 'Line one' });
   assert.equal(calls[1].url, 'https://graph.microsoft.com/v1.0/users/ops%40example.com/sendMail');

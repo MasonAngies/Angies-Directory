@@ -72,38 +72,101 @@ export function fillsToUpdates(fills) {
   return [...byRecord.values()];
 }
 
-// Plain-text operator alert. Returns null when there is nothing worth an email:
-// a silent sync should stay silent.
-export function buildSyncAlert(plan, { applied = [], appName = 'angies-store-directory' } = {}) {
-  const lines = [];
+// Operator alert. Returns null when there is nothing worth an email: a silent
+// sync should stay silent. Both a plain-text and an HTML body are produced; the
+// text one is what the run log and tests read.
+const escapeHtml = (value) =>
+  String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function alertItems(plan) {
+  const items = [];
   for (const conflict of plan.conflicts) {
-    lines.push(
+    items.push(
       conflict.reason === 'ambiguous'
-        ? `Store ${conflict.storeNumber}: two rows in the database share this store number, so nothing was matched.`
-        : `Store ${conflict.storeNumber}: ${conflict.field} is "${conflict.kintone}" in the directory but "${conflict.db}" in the database. Left as it is.`,
+        ? {
+            store: conflict.storeNumber,
+            issue: 'Two database rows',
+            detail: 'Two rows in the stores table share this store number, so nothing was matched.',
+            action: 'Retire or correct one of them.',
+          }
+        : {
+            store: conflict.storeNumber,
+            issue: 'IDs disagree',
+            detail: `${conflict.field.replace(/_/g, ' ')} — directory: ${conflict.kintone}; database: ${conflict.db}.`,
+            action: 'Check which is right, then fix that side by hand. Nothing was changed.',
+          },
     );
   }
   for (const store of plan.missingFromKintone) {
-    lines.push(`Store ${store.storeNumber} (${store.storeName}) is active in the database but is not in the directory. Add it.`);
+    items.push({
+      store: store.storeNumber,
+      issue: 'Not in the directory',
+      detail: `${store.storeName} is active in the database.`,
+      action: 'Add the store to the directory.',
+    });
   }
   for (const store of plan.missingFromDb) {
-    lines.push(`Store ${store.storeNumber} (${store.storeName}) is Active in the directory but not in the database. Check the store number.`);
+    items.push({
+      store: store.storeNumber,
+      issue: 'Not in the database',
+      detail: `${store.storeName} is Active in the directory.`,
+      action: 'Check the store number, or wait for Toast/7shifts to catch up.',
+    });
   }
-  if (!lines.length) return null;
+  return items;
+}
 
-  const filled = applied.length
-    ? [`Filled in automatically: ${applied.map((fill) => `${fill.storeNumber} ${fill.field}`).join(', ')}.`, '']
-    : [];
-  return {
-    subject: `Store directory: ${lines.length} item${lines.length === 1 ? ' needs' : 's need'} attention`,
-    text: [
-      `The daily store directory job found ${lines.length} thing${lines.length === 1 ? '' : 's'} it would not decide on its own.`,
-      '',
-      ...filled,
-      ...lines.map((line) => `- ${line}`),
-      '',
-      'The directory file in SharePoint was published as usual; this is about data, not the export.',
-      `Full log: the latest run of "${appName}" in Modal.`,
-    ].join('\n'),
-  };
+export function buildSyncAlert(plan, { applied = [], appName = 'angies-store-directory', kintoneUrl = '' } = {}) {
+  const items = alertItems(plan);
+  if (!items.length) return null;
+
+  const count = `${items.length} item${items.length === 1 ? ' needs' : 's need'} attention`;
+  const filledLines = applied.map((fill) => `${fill.storeNumber}: ${fill.field.replace(/_/g, ' ')} = ${fill.value}`);
+
+  const text = [
+    `The daily store directory job found ${items.length} thing${items.length === 1 ? '' : 's'} it would not decide on its own.`,
+    '',
+    ...(filledLines.length ? [`Filled in automatically: ${filledLines.join('; ')}.`, ''] : []),
+    ...items.map((item) => `- Store ${item.store} — ${item.issue}: ${item.detail} ${item.action}`),
+    '',
+    'The directory file in SharePoint was published as usual; this is about data, not the export.',
+    `Full log: the latest run of "${appName}" in Modal.`,
+  ].join('\n');
+
+  const cell = 'padding:8px 10px;border-bottom:1px solid #e3e3e3;vertical-align:top;';
+  const rows = items
+    .map(
+      (item) => `<tr>
+        <td style="${cell}font-weight:600;white-space:nowrap;">${escapeHtml(item.store)}</td>
+        <td style="${cell}white-space:nowrap;">${escapeHtml(item.issue)}</td>
+        <td style="${cell}">${escapeHtml(item.detail)}</td>
+        <td style="${cell}color:#444;">${escapeHtml(item.action)}</td>
+      </tr>`,
+    )
+    .join('');
+
+  const filledBlock = filledLines.length
+    ? `<p style="margin:0 0 16px;color:#1a6c2f;">Filled in automatically: ${filledLines.map(escapeHtml).join('; ')}.</p>`
+    : '';
+  const kintoneLink = kintoneUrl
+    ? `<p style="margin:16px 0 0;"><a href="${escapeHtml(kintoneUrl)}" style="color:#0b5cab;">Open the directory in Kintone</a></p>`
+    : '';
+
+  const html = `<div style="font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:14px;color:#222;max-width:760px;">
+  <h2 style="margin:0 0 4px;font-size:18px;">Store directory: ${escapeHtml(count)}</h2>
+  <p style="margin:0 0 16px;color:#555;">The daily sync found data it would not decide on its own. The directory file in SharePoint was published as usual.</p>
+  ${filledBlock}
+  <table cellspacing="0" cellpadding="0" style="border-collapse:collapse;width:100%;font-size:14px;">
+    <thead>
+      <tr style="background:#f3f4f6;text-align:left;">
+        <th style="${cell}">Store</th><th style="${cell}">Issue</th><th style="${cell}">Detail</th><th style="${cell}">What to do</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+  ${kintoneLink}
+  <p style="margin:16px 0 0;color:#777;font-size:12px;">Sent by the "${escapeHtml(appName)}" job; the full log is in Modal.</p>
+</div>`;
+
+  return { subject: `Store directory: ${count}`, text, html };
 }

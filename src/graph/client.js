@@ -113,14 +113,15 @@ export function createGraphClient({
 
     // Sends as the configured mailbox. Used for operator alerts only; the
     // directory data itself goes to SharePoint, never into an email.
-    async sendMail({ sender, to, subject, text }) {
+    async sendMail({ sender, to, subject, text, html }) {
       const recipients = to.map((address) => ({ emailAddress: { address } }));
+      const body = html ? { contentType: 'HTML', content: html } : { contentType: 'Text', content: text };
       await send(
         `${GRAPH}/users/${encodeURIComponent(sender)}/sendMail`,
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${await accessToken()}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: { subject, body: { contentType: 'Text', content: text }, toRecipients: recipients } }),
+          body: JSON.stringify({ message: { subject, body, toRecipients: recipients } }),
         },
         { label: 'send mail' },
       );

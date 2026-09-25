@@ -54,7 +54,7 @@ async function sendAlert(alert, env = process.env) {
       clientId: env.GRAPH_CLIENT_ID,
       clientSecret: env.GRAPH_CLIENT_SECRET,
     });
-    await graph.sendMail({ sender, to: recipients, subject: alert.subject, text: alert.text });
+    await graph.sendMail({ sender, to: recipients, subject: alert.subject, text: alert.text, html: alert.html });
     console.log(`Alert emailed to ${recipients.join(', ')}`);
   } catch (error) {
     console.log(`Alert could not be emailed (${error.message}); the findings above still stand.`);
@@ -96,7 +96,8 @@ async function main() {
   const needsAttention = plan.conflicts.length + plan.missingFromKintone.length + plan.missingFromDb.length;
   if (needsAttention) {
     console.log(`${needsAttention} item(s) need a person.`);
-    const alert = buildSyncAlert(plan, { applied: values.apply ? plan.fills : [] });
+    const kintoneUrl = `${env.baseUrl.replace(/\/$/, '')}/k/${env.appId}/`;
+    const alert = buildSyncAlert(plan, { applied: values.apply ? plan.fills : [], kintoneUrl });
     if (values.alert && alert) await sendAlert(alert);
     process.exitCode = 1;
   }
