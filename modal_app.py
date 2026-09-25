@@ -4,6 +4,10 @@ The directory lives in Kintone, but other departments have no Kintone access, so
 this job rebuilds one Excel file and replaces it in SharePoint each morning. The
 file is a copy for reading: Kintone stays the system of record.
 
+Before exporting it tops up any blank Toast / 7shifts IDs from the shared stores
+table (the nightly Toast + 7shifts sync) so stores added by hand in Kintone do
+not stay unlinked. IDs that disagree are reported, never overwritten.
+
 Schedules are in UTC. Arizona has no DST, so 13:45 UTC = 6:45 AM Arizona --
 after the overnight pipelines, so the file reflects any early-morning edits.
 
@@ -27,6 +31,8 @@ image = (
         "curl -fsSL https://deb.nodesource.com/setup_22.x | bash -",
         "apt-get install -y nodejs",
     )
+    # psycopg is only for scripts/dump-db-stores.py, which feeds the ID sync.
+    .pip_install("psycopg[binary]")
     .add_local_dir(
         ".",
         remote_path="/root/app",
@@ -34,26 +40,46 @@ image = (
     )
 )
 
-# KINTONE_BASE_URL, KINTONE_APP_ID, KINTONE_API_TOKEN (read-only token is enough),
-# GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET, SHAREPOINT_HOST,
-# SHAREPOINT_SITE_PATH, and optionally SHAREPOINT_LIBRARY / SHAREPOINT_FOLDER /
-# EXPORT_FILE_NAME. Created with `modal secret create angies-store-directory ...`.
+# KINTONE_BASE_URL, KINTONE_APP_ID, KINTONE_API_TOKEN (needs edit rights for the
+# ID sync), DATABASE_URL (read-only use), GRAPH_TENANT_ID, GRAPH_CLIENT_ID,
+# GRAPH_CLIENT_SECRET, SHAREPOINT_HOST, SHAREPOINT_SITE_PATH, and optionally
+# SHAREPOINT_LIBRARY / SHAREPOINT_FOLDER / EXPORT_FILE_NAME.
+# Created with `modal secret create angies-store-directory ...`.
 secret = modal.Secret.from_name("angies-store-directory")
 
 
 @app.function(image=image, secrets=[secret], schedule=modal.Cron("45 13 * * *"), timeout=900)
 def daily_export() -> None:
-    """Rebuild the workbook and replace the SharePoint copy.
+    """Top up external IDs, then rebuild the workbook and replace the SharePoint copy.
 
-    Fail-fast: a non-zero exit raises here and shows the run red in Modal. The
-    export refuses to publish an empty file, so a Kintone outage leaves
+    The export is fail-fast: a non-zero exit raises and shows the run red in
+    Modal. It refuses to publish an empty file, so a Kintone outage leaves
     yesterday's copy in place rather than blanking it for every reader.
+
+    The ID sync is deliberately not fail-fast. Exit code 1 means it found
+    something a person must settle (an ID that disagrees with the database, or a
+    store missing from one side), which is no reason to withhold the file — so
+    the export runs first and the run is only marked failed afterwards.
     """
+    sync = subprocess.run(
+        ["node", "scripts/sync-external-ids.js", "--apply"],
+        cwd="/root/app",
+        check=False,
+    )
+    if sync.returncode == 2:
+        print("External ID sync could not run; continuing to the export.")
+
     subprocess.run(
         ["node", "scripts/export-directory.js", "--upload"],
         cwd="/root/app",
         check=True,
     )
+
+    if sync.returncode != 0:
+        raise RuntimeError(
+            f"External ID sync needs attention (exit {sync.returncode}); see the log above. "
+            "The directory file was published."
+        )
 
 
 @app.local_entrypoint()

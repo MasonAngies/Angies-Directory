@@ -22,6 +22,7 @@ npm run schema:plan         # dry run: what setup would change in the app
 | `npm run import:validate -- file.csv` | Checks a CSV before import (`--offline`, or `--reconcile` after import) | No |
 | `npm run backup` | Exports settings and all records to `backups/` (`--settings-only` available) | No |
 | `npm run lookup -- 11101` | Runs the lookup contract for one store | No |
+| `npm run sync:ids` | Compares Toast / 7shifts IDs with the shared stores table (`--apply` writes the blanks) | Only with `--apply` |
 | `npm run export` | Builds the shared Excel file in `exports/` | No |
 | `npm run export -- --upload` | Builds it and replaces the SharePoint copy | SharePoint only |
 
@@ -51,6 +52,7 @@ Environment variables (names only; values live in `.env` or your secret manager)
 | `KINTONE_API_TOKEN` | Setup/admin token: **View records** + **Manage app**. Consumers of the lookup should get a separate token with **View records** only |
 | `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` | Export job only: app registration with the Graph **Sites.Selected** permission, granted write on the one site |
 | `SHAREPOINT_HOST`, `SHAREPOINT_SITE_PATH`, `SHAREPOINT_LIBRARY`, `SHAREPOINT_FOLDER`, `EXPORT_FILE_NAME` | Where the workbook is written; library/folder/name may be left blank for the defaults |
+| `DATABASE_URL` | Read-only use of the shared `stores` table for the external-ID sync. `scripts/dump-db-stores.py` needs psycopg; set `PYTHON_BIN` if it is not on the default `python3` |
 
 Committed configuration:
 
@@ -66,6 +68,12 @@ rebuilds `Angies Store Directory.xlsx` from the live app and replaces the file i
 its link never changes. The sheet holds the contact fields only; a footer says the file is a
 daily copy and that Kintone is the system of record. Verification state and data gaps stay
 in `npm run audit`, not in the shared file.
+
+Each morning, before the file is built, `npm run sync:ids -- --apply` fills any blank Toast
+or 7shifts ID from the shared stores table, matching on exact store number. An ID that
+disagrees with the database is reported and left alone, as are stores present on only one
+side. Those reports mark the Modal run failed *after* the file is published, so a data
+question never withholds the directory.
 
 The job refuses to publish an empty file, so a Kintone outage leaves yesterday's copy in
 place instead of blanking it for every reader. It runs on Modal (see `modal_app.py`), and

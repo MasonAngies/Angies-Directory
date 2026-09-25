@@ -123,6 +123,17 @@ Other departments read `Angies Store Directory.xlsx` in SharePoint, rebuilt from
 5. **Check the schedule.** Deploying registers the daily run at 13:45 UTC (6:45 AM Arizona, which has no DST). Change the `modal.Cron` line in `modal_app.py` and redeploy to move it.
 6. **Share the file** with the departments that need it (read-only), and point them at the file, not the folder.
 
+### External ID sync
+
+The morning run calls `npm run sync:ids -- --apply` before building the file. It reads the shared `stores` table (the nightly Toast + 7shifts sync), matches on exact store number, and:
+
+- **fills** a blank Toast or 7shifts ID in Kintone, logging each one;
+- **reports and leaves alone** an ID that disagrees with the database. Usually the store was re-pointed at a different Toast location: check which is right, fix the wrong side by hand;
+- **reports** `NOT IN DIRECTORY` (active in the database, absent from Kintone: add the store) and `NOT IN DATABASE` (Active in Kintone, absent from the database: usually a store number typo, or a location not yet in Toast/7shifts);
+- **skips** database rows marked `excluded`, and counts pre-opening rows that have no store number yet.
+
+Any of those reports makes the Modal run go red, but only after the file has been published. Run `npm run sync:ids` locally (no `--apply`) to see the same report without changing anything.
+
 ### Checking and fixing it
 
 - Test any time without touching SharePoint: `npm run export` writes to `exports/` only.
