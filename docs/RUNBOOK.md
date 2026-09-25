@@ -123,16 +123,20 @@ Other departments read `Angies Store Directory.xlsx` in SharePoint, rebuilt from
 5. **Check the schedule.** Deploying registers the daily run at 13:45 UTC (6:45 AM Arizona, which has no DST). Change the `modal.Cron` line in `modal_app.py` and redeploy to move it.
 6. **Share the file** with the departments that need it (read-only), and point them at the file, not the folder.
 
-### External ID sync
+### Daily data sync
 
-The morning run calls `npm run sync:ids -- --apply` before building the file. It reads the shared `stores` table (the nightly Toast + 7shifts sync), matches on exact store number, and:
+The morning run calls `npm run sync -- --apply` before building the file. It reads the shared `stores` table (the nightly Toast + 7shifts sync), matches on exact store number, and:
 
 - **fills** a blank Toast or 7shifts ID in Kintone, logging each one;
 - **reports and leaves alone** an ID that disagrees with the database. Usually the store was re-pointed at a different Toast location: check which is right, fix the wrong side by hand;
 - **reports** `NOT IN DIRECTORY` (active in the database, absent from Kintone: add the store) and `NOT IN DATABASE` (Active in Kintone, absent from the database: usually a store number typo, or a location not yet in Toast/7shifts);
 - **skips** database rows marked `excluded`, and counts pre-opening rows that have no store number yet.
 
-Any of those reports makes the Modal run go red, but only after the file has been published. Run `npm run sync:ids` locally (no `--apply`) to see the same report without changing anything.
+It also keeps **Store Format** in step with the store's concepts: all four of Prime, Lobster, Burger and Chicken means `Full Food Platform`, fewer means `Healthy/Limited Menu`, and Pizza does not affect it. A blank format is filled; a format that disagrees with the concepts is reported and left alone, because either side could be the wrong one. A store with no concepts recorded keeps a blank format and is only mentioned in the log.
+
+Any of those reports makes the Modal run go red, but only after the file has been published, and they are emailed to `ALERT_RECIPIENTS`. Run `npm run sync` locally (no `--apply`) to see the same report without changing anything.
+
+Store Format lives under the Kintone field code `Radio_button`, which is what Kintone generated when the field was added by hand. Renaming that code in the field settings would be tidier; if anyone does, update `STORE_FORMAT_FIELD` in `src/directory/store-format.js` to match.
 
 ### Checking and fixing it
 

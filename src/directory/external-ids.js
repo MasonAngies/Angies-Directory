@@ -97,6 +97,14 @@ function alertItems(plan) {
           },
     );
   }
+  for (const conflict of plan.formatConflicts ?? []) {
+    items.push({
+      store: conflict.storeNumber,
+      issue: 'Format disagrees',
+      detail: `Store Format is "${conflict.current}" but the concepts (${conflict.concepts.join(', ') || 'none'}) say "${conflict.computed}".`,
+      action: 'Fix whichever is wrong, the concepts or the format. Nothing was changed.',
+    });
+  }
   for (const store of plan.missingFromKintone) {
     items.push({
       store: store.storeNumber,
@@ -121,7 +129,8 @@ export function buildSyncAlert(plan, { applied = [], appName = 'angies-store-dir
   if (!items.length) return null;
 
   const count = `${items.length} item${items.length === 1 ? ' needs' : 's need'} attention`;
-  const filledLines = applied.map((fill) => `${fill.storeNumber}: ${fill.field.replace(/_/g, ' ')} = ${fill.value}`);
+  const label = (field) => (field === 'Radio_button' ? 'Store Format' : field.replace(/_/g, ' '));
+  const filledLines = applied.map((fill) => `${fill.storeNumber}: ${label(fill.field)} = ${fill.value}`);
 
   const text = [
     `The daily store directory job found ${items.length} thing${items.length === 1 ? '' : 's'} it would not decide on its own.`,

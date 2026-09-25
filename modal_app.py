@@ -4,9 +4,10 @@ The directory lives in Kintone, but other departments have no Kintone access, so
 this job rebuilds one Excel file and replaces it in SharePoint each morning. The
 file is a copy for reading: Kintone stays the system of record.
 
-Before exporting it tops up any blank Toast / 7shifts IDs from the shared stores
-table (the nightly Toast + 7shifts sync) so stores added by hand in Kintone do
-not stay unlinked. IDs that disagree are reported, never overwritten.
+Before exporting it tops up the directory's derived data: blank Toast / 7shifts
+IDs from the shared stores table (the nightly Toast + 7shifts sync), and blank
+Store Format from the store's concepts. Values that disagree with their source
+are reported, never overwritten.
 
 Schedules are in UTC. Arizona has no DST, so 13:45 UTC = 6:45 AM Arizona --
 after the overnight pipelines, so the file reflects any early-morning edits.
@@ -58,19 +59,19 @@ def daily_export() -> None:
     Modal. It refuses to publish an empty file, so a Kintone outage leaves
     yesterday's copy in place rather than blanking it for every reader.
 
-    The ID sync is deliberately not fail-fast. Exit code 1 means it found
+    The sync is deliberately not fail-fast. Exit code 1 means it found
     something a person must settle (an ID that disagrees with the database, or a
     store missing from one side), which is no reason to withhold the file — so
     the export runs first and the run is only marked failed afterwards. Those
     findings are also emailed to ALERT_RECIPIENTS, so nobody has to watch Modal.
     """
     sync = subprocess.run(
-        ["node", "scripts/sync-external-ids.js", "--apply", "--alert"],
+        ["node", "scripts/sync-directory.js", "--apply", "--alert"],
         cwd="/root/app",
         check=False,
     )
     if sync.returncode == 2:
-        print("External ID sync could not run; continuing to the export.")
+        print("Directory sync could not run; continuing to the export.")
 
     subprocess.run(
         ["node", "scripts/export-directory.js", "--upload"],
@@ -80,7 +81,7 @@ def daily_export() -> None:
 
     if sync.returncode != 0:
         raise RuntimeError(
-            f"External ID sync needs attention (exit {sync.returncode}); see the log above. "
+            f"Directory sync needs attention (exit {sync.returncode}); see the log above. "
             "The directory file was published."
         )
 

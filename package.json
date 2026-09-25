@@ -19,6 +19,6 @@
     "import:validate": "node --env-file-if-exists=.env scripts/validate-import.js",
     "lookup": "node --env-file-if-exists=.env scripts/lookup.js",
     "export": "node --env-file-if-exists=.env scripts/export-directory.js",
-    "sync:ids": "node --env-file-if-exists=.env scripts/sync-external-ids.js"
+    "sync": "node --env-file-if-exists=.env scripts/sync-directory.js"
   }
 }
