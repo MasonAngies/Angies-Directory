@@ -71,3 +71,39 @@ export function fillsToUpdates(fills) {
   }
   return [...byRecord.values()];
 }
+
+// Plain-text operator alert. Returns null when there is nothing worth an email:
+// a silent sync should stay silent.
+export function buildSyncAlert(plan, { applied = [], appName = 'angies-store-directory' } = {}) {
+  const lines = [];
+  for (const conflict of plan.conflicts) {
+    lines.push(
+      conflict.reason === 'ambiguous'
+        ? `Store ${conflict.storeNumber}: two rows in the database share this store number, so nothing was matched.`
+        : `Store ${conflict.storeNumber}: ${conflict.field} is "${conflict.kintone}" in the directory but "${conflict.db}" in the database. Left as it is.`,
+    );
+  }
+  for (const store of plan.missingFromKintone) {
+    lines.push(`Store ${store.storeNumber} (${store.storeName}) is active in the database but is not in the directory. Add it.`);
+  }
+  for (const store of plan.missingFromDb) {
+    lines.push(`Store ${store.storeNumber} (${store.storeName}) is Active in the directory but not in the database. Check the store number.`);
+  }
+  if (!lines.length) return null;
+
+  const filled = applied.length
+    ? [`Filled in automatically: ${applied.map((fill) => `${fill.storeNumber} ${fill.field}`).join(', ')}.`, '']
+    : [];
+  return {
+    subject: `Store directory: ${lines.length} item${lines.length === 1 ? ' needs' : 's need'} attention`,
+    text: [
+      `The daily store directory job found ${lines.length} thing${lines.length === 1 ? '' : 's'} it would not decide on its own.`,
+      '',
+      ...filled,
+      ...lines.map((line) => `- ${line}`),
+      '',
+      'The directory file in SharePoint was published as usual; this is about data, not the export.',
+      `Full log: the latest run of "${appName}" in Modal.`,
+    ].join('\n'),
+  };
+}

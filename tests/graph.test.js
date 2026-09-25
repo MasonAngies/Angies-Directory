@@ -93,3 +93,13 @@ test('missing credentials are reported by name, never by value', () => {
   assert.equal(config.fileName, 'Angies Store Directory.xlsx', 'file name has a default');
   assert.equal(config.folder, '');
 });
+
+test('sendMail posts a plain-text message from the configured mailbox', async () => {
+  const { client, calls } = setup([token(), json(202, undefined)]);
+  await client.sendMail({ sender: 'ops@example.com', to: ['a@example.com', 'b@example.com'], subject: 'Subject', text: 'Line one' });
+  assert.equal(calls[1].url, 'https://graph.microsoft.com/v1.0/users/ops%40example.com/sendMail');
+  const sent = JSON.parse(calls[1].init.body);
+  assert.equal(sent.message.subject, 'Subject');
+  assert.deepEqual(sent.message.body, { contentType: 'Text', content: 'Line one' });
+  assert.deepEqual(sent.message.toRecipients.map((r) => r.emailAddress.address), ['a@example.com', 'b@example.com']);
+});

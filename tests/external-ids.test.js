@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { fillsToUpdates, planExternalIdSync } from '../src/directory/external-ids.js';
+import { buildSyncAlert, fillsToUpdates, planExternalIdSync } from '../src/directory/external-ids.js';
 
 const record = (overrides) => ({
   $id: '1',
@@ -66,4 +66,28 @@ test('rows without a store number are counted, and updates are grouped per recor
   assert.deepEqual(fillsToUpdates(plan.fills), [
     { id: '1', revision: '2', record: { Toast_Location_ID: { value: 'guid-1' }, SevenShifts_Location_ID: { value: '216941' } } },
   ]);
+});
+
+test('a clean sync sends no alert', () => {
+  const plan = planExternalIdSync([record()], [dbStore()]);
+  assert.equal(buildSyncAlert(plan), null, 'filling blanks alone is not worth an email');
+});
+
+test('the alert names each item, the fills, and says the file still went out', () => {
+  const plan = planExternalIdSync(
+    [record({ Toast_Location_ID: 'other-guid' }), record({ $id: '2', Store_Number: '99999', Store_Name: 'Ghost' })],
+    [dbStore(), dbStore({ store_number: '11106', store_name: 'Litchfield & Waddell' })],
+  );
+  const alert = buildSyncAlert(plan, { applied: plan.fills });
+  assert.match(alert.subject, /^Store directory: 3 items need attention$/);
+  assert.match(alert.text, /Store 11101: Toast_Location_ID is "other-guid" in the directory but "guid-1" in the database/);
+  assert.match(alert.text, /Store 11106 \(Litchfield & Waddell\) is active in the database but is not in the directory/);
+  assert.match(alert.text, /Store 99999 \(Ghost\) is Active in the directory but not in the database/);
+  assert.match(alert.text, /Filled in automatically: 11101 SevenShifts_Location_ID/);
+  assert.match(alert.text, /published as usual/);
+});
+
+test('one item reads as singular', () => {
+  const plan = planExternalIdSync([record({ Toast_Location_ID: 'other-guid', SevenShifts_Location_ID: '216941' })], [dbStore()]);
+  assert.match(buildSyncAlert(plan).subject, /1 item needs attention/);
 });

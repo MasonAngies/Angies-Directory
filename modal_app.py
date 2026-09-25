@@ -44,6 +44,8 @@ image = (
 # ID sync), DATABASE_URL (read-only use), GRAPH_TENANT_ID, GRAPH_CLIENT_ID,
 # GRAPH_CLIENT_SECRET, SHAREPOINT_HOST, SHAREPOINT_SITE_PATH, and optionally
 # SHAREPOINT_LIBRARY / SHAREPOINT_FOLDER / EXPORT_FILE_NAME.
+# ALERT_RECIPIENTS + GRAPH_SENDER_ADDRESS turn on the email when the ID sync
+# finds something a person must settle; without them it only writes to this log.
 # Created with `modal secret create angies-store-directory ...`.
 secret = modal.Secret.from_name("angies-store-directory")
 
@@ -59,10 +61,11 @@ def daily_export() -> None:
     The ID sync is deliberately not fail-fast. Exit code 1 means it found
     something a person must settle (an ID that disagrees with the database, or a
     store missing from one side), which is no reason to withhold the file — so
-    the export runs first and the run is only marked failed afterwards.
+    the export runs first and the run is only marked failed afterwards. Those
+    findings are also emailed to ALERT_RECIPIENTS, so nobody has to watch Modal.
     """
     sync = subprocess.run(
-        ["node", "scripts/sync-external-ids.js", "--apply"],
+        ["node", "scripts/sync-external-ids.js", "--apply", "--alert"],
         cwd="/root/app",
         check=False,
     )

@@ -4,6 +4,8 @@
 //   npm run sync:ids                 dry run: show what would be filled
 //   npm run sync:ids -- --apply      write the fills into Kintone
 //   npm run sync:ids -- --source db-stores.json   use a dump instead of querying
+//   npm run sync:ids -- --apply --alert           also email ALERT_RECIPIENTS when
+//                                                 something needs a person
 // Exit code: 1 when something needs a person, 2 when the sync could not run.
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -13,8 +15,9 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { loadEnvConfig } from '../src/config.js';
-import { fillsToUpdates, planExternalIdSync } from '../src/directory/external-ids.js';
+import { buildSyncAlert, fillsToUpdates, planExternalIdSync } from '../src/directory/external-ids.js';
 import { fromKintoneRecord } from '../src/directory/rules.js';
+import { createGraphClient } from '../src/graph/client.js';
 import { createKintoneClient } from '../src/kintone/client.js';
 
 const FIELDS = ['$id', '$revision', 'Store_Number', 'Store_Name', 'Active_Status', 'Toast_Location_ID', 'SevenShifts_Location_ID'];
@@ -33,8 +36,35 @@ function readDbStores(sourcePath) {
   }
 }
 
+// Emails the operator summary. A mail failure must not lose the findings, which
+// are already in the log, so it is reported and the exit code stands.
+async function sendAlert(alert, env = process.env) {
+  const recipients = (env.ALERT_RECIPIENTS ?? '')
+    .split(/[,;]/)
+    .map((address) => address.trim())
+    .filter(Boolean);
+  const sender = env.GRAPH_SENDER_ADDRESS;
+  if (!recipients.length || !sender) {
+    console.log('Alert not sent: ALERT_RECIPIENTS and GRAPH_SENDER_ADDRESS must both be set.');
+    return;
+  }
+  try {
+    const graph = createGraphClient({
+      tenantId: env.GRAPH_TENANT_ID,
+      clientId: env.GRAPH_CLIENT_ID,
+      clientSecret: env.GRAPH_CLIENT_SECRET,
+    });
+    await graph.sendMail({ sender, to: recipients, subject: alert.subject, text: alert.text });
+    console.log(`Alert emailed to ${recipients.join(', ')}`);
+  } catch (error) {
+    console.log(`Alert could not be emailed (${error.message}); the findings above still stand.`);
+  }
+}
+
 async function main() {
-  const { values } = parseArgs({ options: { apply: { type: 'boolean', default: false }, source: { type: 'string' } } });
+  const { values } = parseArgs({
+    options: { apply: { type: 'boolean', default: false }, source: { type: 'string' }, alert: { type: 'boolean', default: false } },
+  });
   const env = loadEnvConfig();
   const client = createKintoneClient(env);
   const dbStores = readDbStores(values.source);
@@ -66,6 +96,8 @@ async function main() {
   const needsAttention = plan.conflicts.length + plan.missingFromKintone.length + plan.missingFromDb.length;
   if (needsAttention) {
     console.log(`${needsAttention} item(s) need a person.`);
+    const alert = buildSyncAlert(plan, { applied: values.apply ? plan.fills : [] });
+    if (values.alert && alert) await sendAlert(alert);
     process.exitCode = 1;
   }
 }

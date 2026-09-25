@@ -111,6 +111,22 @@ export function createGraphClient({
       return { id: drive.id, name: drive.name, webUrl: drive.webUrl };
     },
 
+    // Sends as the configured mailbox. Used for operator alerts only; the
+    // directory data itself goes to SharePoint, never into an email.
+    async sendMail({ sender, to, subject, text }) {
+      const recipients = to.map((address) => ({ emailAddress: { address } }));
+      await send(
+        `${GRAPH}/users/${encodeURIComponent(sender)}/sendMail`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${await accessToken()}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: { subject, body: { contentType: 'Text', content: text }, toRecipients: recipients } }),
+        },
+        { label: 'send mail' },
+      );
+      return { to, subject };
+    },
+
     // Simple upload; Graph allows up to 250MB this way and the directory is tiny.
     async uploadFile({ driveId, folder, fileName, data, contentType = 'application/octet-stream' }) {
       const path = [folder, fileName].filter(Boolean).join('/');
