@@ -80,7 +80,8 @@ export function fillsToUpdates(fills) {
 const escapeHtml = (value) =>
   String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-function alertItems(plan) {
+// One entry per thing a person must settle; shared by the email and the database.
+export function findingItems(plan) {
   const items = [];
   for (const conflict of plan.conflicts) {
     items.push(
@@ -137,7 +138,7 @@ function alertItems(plan) {
 }
 
 export function buildSyncAlert(plan, { applied = [], speedFills = [], appName = 'angies-store-directory', kintoneUrl = '' } = {}) {
-  const items = alertItems(plan);
+  const items = findingItems(plan);
   if (!items.length) return null;
 
   const count = `${items.length} item${items.length === 1 ? ' needs' : 's need'} attention`;

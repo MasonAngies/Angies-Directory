@@ -8,16 +8,17 @@
 //   npm run sync -- --source db-stores.json   use a dump instead of querying
 //   npm run sync -- --apply --alert           also email ALERT_RECIPIENTS when
 //                                             something needs a person
+//   npm run sync -- --findings-out f.json     write the findings for the database load
 // Exit code: 1 when something needs a person, 2 when the sync could not run.
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { loadEnvConfig } from '../src/config.js';
-import { buildSyncAlert, fillsToUpdates, planExternalIdSync } from '../src/directory/external-ids.js';
+import { buildSyncAlert, fillsToUpdates, findingItems, planExternalIdSync } from '../src/directory/external-ids.js';
 import { fromKintoneRecord } from '../src/directory/rules.js';
 import { CUSTOM_FIELDS } from '../src/directory/custom-fields.js';
 import { planSpeedGoalFill, speedFillsToFieldFills } from '../src/directory/speed-goals.js';
@@ -76,7 +77,12 @@ async function sendAlert(alert, env = process.env) {
 
 async function main() {
   const { values } = parseArgs({
-    options: { apply: { type: 'boolean', default: false }, source: { type: 'string' }, alert: { type: 'boolean', default: false } },
+    options: {
+      apply: { type: 'boolean', default: false },
+      source: { type: 'string' },
+      alert: { type: 'boolean', default: false },
+      'findings-out': { type: 'string' },
+    },
   });
   const env = loadEnvConfig();
   const client = createKintoneClient(env);
@@ -122,6 +128,10 @@ async function main() {
   if (plan.dbWithoutStoreNumber) console.log(`  ${plan.dbWithoutStoreNumber} database row(s) have no store number yet (pre-opening); nothing to match`);
 
   const findings = { ...plan, formatConflicts: formats.conflicts, speedUnmatched: speed.unmatched };
+  if (values['findings-out']) {
+    const report = { runAt: new Date().toISOString(), filled: values.apply ? fills.length : 0, items: findingItems(findings) };
+    writeFileSync(values['findings-out'], JSON.stringify(report));
+  }
   const needsAttention =
     plan.conflicts.length + plan.missingFromKintone.length + plan.missingFromDb.length + formats.conflicts.length + speed.unmatched.length;
   if (needsAttention) {

@@ -52,7 +52,7 @@ Environment variables (names only; values live in `.env` or your secret manager)
 | `KINTONE_API_TOKEN` | Setup/admin token: **View records** + **Manage app**. Consumers of the lookup should get a separate token with **View records** only |
 | `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET` | Export job only: app registration with the Graph **Sites.Selected** permission, granted write on the one site |
 | `SHAREPOINT_HOST`, `SHAREPOINT_SITE_PATH`, `SHAREPOINT_LIBRARY`, `SHAREPOINT_FOLDER`, `EXPORT_FILE_NAME` | Where the workbook is written; library/folder/name may be left blank for the defaults |
-| `DATABASE_URL` | Read-only use of the shared `stores` table for the external-ID sync. `scripts/dump-db-stores.py` needs psycopg; set `PYTHON_BIN` if it is not on the default `python3` |
+| `DATABASE_URL` | Shared Postgres: the sync reads `stores`, and the morning job writes the `store_directory*` tables (see below). The Python scripts need psycopg (3 or 2); set `PYTHON_BIN` if it is not on the default `python3` |
 
 Committed configuration:
 
@@ -82,6 +82,18 @@ The job refuses to publish an empty file, so a Kintone outage leaves yesterday's
 place instead of blanking it for every reader. It runs on Modal (see `modal_app.py`), and
 [docs/RUNBOOK.md](docs/RUNBOOK.md#daily-sharepoint-export) covers the one-time Microsoft
 permission, the secret, and how it is triggered.
+
+## Database copy
+
+Right after the SharePoint file, the morning job loads the directory into the shared Postgres (`sql/store_directory.sql`, created automatically):
+
+| Table | What it holds |
+|---|---|
+| `store_directory` | One row per store, every directory field including store format, order methods and speed goals (whole seconds). `sevenshifts_location_id` and `toast_location_id` join straight to `stores` |
+| `store_directory_findings` | What the latest sync could not decide on its own (store, issue, detail, what to do). Replaced each run |
+| `store_directory_runs` | One row per run (time, store count, findings, fills, whether the sync ran), so "no findings" can be told apart from "did not run" |
+
+Kintone stays the system of record; edit there, not in these tables. An empty directory is never loaded, so a Kintone outage leaves yesterday's copy in place. A database failure never holds back the SharePoint file, but it does turn the Modal run red.
 
 ## Using the lookup contract
 

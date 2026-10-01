@@ -1,7 +1,8 @@
 """Modal deployment of the daily SharePoint export of the store directory.
 
 The directory lives in Kintone, but other departments have no Kintone access, so
-this job rebuilds one Excel file and replaces it in SharePoint each morning. The
+this job rebuilds one Excel file and replaces it in SharePoint each morning, then
+loads the same data into the shared Postgres (store_directory tables). The
 file is a copy for reading: Kintone stays the system of record.
 
 Before exporting it tops up the directory's derived data: blank Toast / 7shifts
@@ -42,7 +43,8 @@ image = (
 )
 
 # KINTONE_BASE_URL, KINTONE_APP_ID, KINTONE_API_TOKEN (needs edit rights for the
-# ID sync), DATABASE_URL (read-only use), GRAPH_TENANT_ID, GRAPH_CLIENT_ID,
+# ID sync), DATABASE_URL (reads stores, writes the store_directory tables),
+# GRAPH_TENANT_ID, GRAPH_CLIENT_ID,
 # GRAPH_CLIENT_SECRET, SHAREPOINT_HOST, SHAREPOINT_SITE_PATH, and optionally
 # SHAREPOINT_LIBRARY / SHAREPOINT_FOLDER / EXPORT_FILE_NAME.
 # ALERT_RECIPIENTS + GRAPH_SENDER_ADDRESS turn on the email when the ID sync
@@ -66,7 +68,7 @@ def daily_export() -> None:
     findings are also emailed to ALERT_RECIPIENTS, so nobody has to watch Modal.
     """
     sync = subprocess.run(
-        ["node", "scripts/sync-directory.js", "--apply", "--alert"],
+        ["node", "scripts/sync-directory.js", "--apply", "--alert", "--findings-out", "/tmp/findings.json"],
         cwd="/root/app",
         check=False,
     )
@@ -79,6 +81,23 @@ def daily_export() -> None:
         check=True,
     )
 
+    # The database copy comes after the SharePoint file, so a database problem
+    # can never hold the file back; it still turns the run red below.
+    db_error = None
+    try:
+        subprocess.run(["node", "scripts/dump-directory.js", "/tmp/directory.json"], cwd="/root/app", check=True)
+        findings_args = ["--findings", "/tmp/findings.json"] if sync.returncode in (0, 1) else ["--sync-failed"]
+        subprocess.run(
+            ["python3", "scripts/load-directory-to-db.py", "--directory", "/tmp/directory.json", *findings_args],
+            cwd="/root/app",
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        db_error = exc
+        print(f"Database load failed: {exc}")
+
+    if db_error is not None:
+        raise RuntimeError("The directory file was published, but the database load failed; see the log above.")
     if sync.returncode != 0:
         raise RuntimeError(
             f"Directory sync needs attention (exit {sync.returncode}); see the log above. "
