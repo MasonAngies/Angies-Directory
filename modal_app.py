@@ -10,8 +10,9 @@ IDs from the shared stores table (the nightly Toast + 7shifts sync), and blank
 Store Format from the store's concepts. Values that disagree with their source
 are reported, never overwritten.
 
-Schedules are in UTC. Arizona has no DST, so 13:45 UTC = 6:45 AM Arizona --
-after the overnight pipelines, so the file reflects any early-morning edits.
+Schedules are in UTC. Arizona has no DST, so 07:30 UTC = 12:30 AM Arizona. That is
+before the 1 AM food-cost chain, so the findings are in the database by the time the
+Angies dashboard digest (sent after that chain) reads them into its morning email.
 
 Deploy:   modal deploy modal_app.py
 Test now: modal run modal_app.py::daily_export
@@ -53,7 +54,7 @@ image = (
 secret = modal.Secret.from_name("angies-store-directory")
 
 
-@app.function(image=image, secrets=[secret], schedule=modal.Cron("45 13 * * *"), timeout=900)
+@app.function(image=image, secrets=[secret], schedule=modal.Cron("30 7 * * *"), timeout=900)
 def daily_export() -> None:
     """Top up external IDs, then rebuild the workbook and replace the SharePoint copy.
 

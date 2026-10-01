@@ -108,7 +108,7 @@ It trims identifiers, requires Active-store contact fields, checks email syntax 
 
 ## Daily SharePoint export
 
-Other departments read `Angies Store Directory.xlsx` in SharePoint, rebuilt from Kintone every morning. Only the contact fields are exported; verification state and gaps stay in the audit. The file is replaced in place, so its link and permissions stay put, and edits made in the file are overwritten the next morning.
+Other departments read `Angies Store Directory.xlsx` in SharePoint, rebuilt from Kintone every night at 12:30 AM Arizona. Only the contact fields are exported; verification state and gaps stay in the audit. The file is replaced in place, so its link and permissions stay put, and edits made in the file are overwritten the next morning.
 
 ### One-time setup
 
@@ -120,7 +120,7 @@ Other departments read `Angies Store Directory.xlsx` in SharePoint, rebuilt from
 3. **Create the Modal secret** with the Kintone values (a View-records-only token is enough) and the Microsoft ones:
    `modal secret create angies-store-directory KINTONE_BASE_URL=... KINTONE_APP_ID=... KINTONE_API_TOKEN=... GRAPH_TENANT_ID=... GRAPH_CLIENT_ID=... GRAPH_CLIENT_SECRET=... SHAREPOINT_HOST=... SHAREPOINT_SITE_PATH=... SHAREPOINT_FOLDER=...`
 4. **Deploy:** `modal deploy modal_app.py`, then `modal run modal_app.py::daily_export` for a first run.
-5. **Check the schedule.** Deploying registers the daily run at 13:45 UTC (6:45 AM Arizona, which has no DST). Change the `modal.Cron` line in `modal_app.py` and redeploy to move it.
+5. **Check the schedule.** Deploying registers the daily run at 07:30 UTC (12:30 AM Arizona, which has no DST), ahead of the 1 AM food-cost chain so the dashboard digest can carry the same night's findings. Change the `modal.Cron` line in `modal_app.py` and redeploy to move it.
 6. **Share the file** with the departments that need it (read-only), and point them at the file, not the folder.
 
 ### Daily data sync
