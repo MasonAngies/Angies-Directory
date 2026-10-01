@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Keeps the directory's derived data in step: fills blank Toast / 7shifts IDs
 // from the shared stores table, fills blank Store Format from the store's
-// concepts, and reports anything it will not decide on its own.
+// concepts, gives a new store the speed goals of its peers, and reports
+// anything it will not decide on its own.
 //   npm run sync                  dry run: show what would be filled
 //   npm run sync -- --apply       write the fills into Kintone
 //   npm run sync -- --source db-stores.json   use a dump instead of querying
@@ -18,15 +19,21 @@ import { parseArgs } from 'node:util';
 import { loadEnvConfig } from '../src/config.js';
 import { buildSyncAlert, fillsToUpdates, planExternalIdSync } from '../src/directory/external-ids.js';
 import { fromKintoneRecord } from '../src/directory/rules.js';
-import { planStoreFormatSync, STORE_FORMAT_FIELD } from '../src/directory/store-format.js';
+import { CUSTOM_FIELDS } from '../src/directory/custom-fields.js';
+import { planSpeedGoalFill, speedFillsToFieldFills } from '../src/directory/speed-goals.js';
+import { planStoreFormatSync } from '../src/directory/store-format.js';
 import { createGraphClient } from '../src/graph/client.js';
 import { createKintoneClient } from '../src/kintone/client.js';
 
-const FIELDS = ['$id', '$revision', 'Store_Number', 'Store_Name', 'Active_Status', 'Toast_Location_ID', 'SevenShifts_Location_ID', 'Concept', STORE_FORMAT_FIELD];
+const CUSTOM_CODES = Object.values(CUSTOM_FIELDS);
+const FIELDS = ['$id', '$revision', 'Store_Number', 'Store_Name', 'Active_Status', 'Toast_Location_ID', 'SevenShifts_Location_ID', 'Concept', ...CUSTOM_CODES];
 
-// Store Format is not part of the exported field contract, so it is carried
-// alongside the plain record rather than through fromKintoneRecord.
-const toPlain = (record) => ({ ...fromKintoneRecord(record), [STORE_FORMAT_FIELD]: record[STORE_FORMAT_FIELD]?.value ?? '' });
+// The hand-added fields are not part of the exported field contract, so they
+// are carried alongside the plain record rather than through fromKintoneRecord.
+const toPlain = (record) => ({
+  ...fromKintoneRecord(record),
+  ...Object.fromEntries(CUSTOM_CODES.map((code) => [code, record[code]?.value ?? ''])),
+});
 
 function readDbStores(sourcePath) {
   if (sourcePath) return JSON.parse(readFileSync(sourcePath, 'utf8'));
@@ -77,12 +84,14 @@ async function main() {
 
   let plan;
   let formats;
+  let speed;
   let fills;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     const records = (await client.getAllRecords({ app: env.appId, fields: FIELDS })).map(toPlain);
     plan = planExternalIdSync(records, dbStores);
     formats = planStoreFormatSync(records);
-    fills = [...plan.fills, ...formats.fills];
+    speed = planSpeedGoalFill(records, { formatFills: new Map(formats.fills.map((fill) => [fill.recordId, fill.value])) });
+    fills = [...plan.fills, ...formats.fills, ...speedFillsToFieldFills(speed.fills)];
     if (!values.apply || !fills.length) break;
     try {
       await client.put('records', { app: env.appId, records: fillsToUpdates(fills) });
@@ -100,6 +109,8 @@ async function main() {
   for (const conflict of formats.conflicts) {
     console.log(`  CONFLICT ${conflict.storeNumber}: Store Format is "${conflict.current}" but concepts (${conflict.concepts.join(', ')}) say "${conflict.computed}"; left alone`);
   }
+  for (const fill of speed.fills) console.log(`  ${fill.storeNumber}: speed goals copied from ${fill.copiedFrom.join(', ')}`);
+  for (const miss of speed.unmatched) console.log(`  SPEED GOALS NOT FILLED ${miss.storeNumber}: ${miss.reason}`);
   if (formats.withoutConcepts.length) {
     console.log(`  ${formats.withoutConcepts.length} store(s) have no concepts recorded, so Store Format was left blank: ${formats.withoutConcepts.join(', ')}`);
   }
@@ -110,12 +121,17 @@ async function main() {
   for (const store of plan.missingFromDb) console.log(`  NOT IN DATABASE: store ${store.storeNumber} (${store.storeName}) is Active in the directory`);
   if (plan.dbWithoutStoreNumber) console.log(`  ${plan.dbWithoutStoreNumber} database row(s) have no store number yet (pre-opening); nothing to match`);
 
-  const findings = { ...plan, formatConflicts: formats.conflicts };
-  const needsAttention = plan.conflicts.length + plan.missingFromKintone.length + plan.missingFromDb.length + formats.conflicts.length;
+  const findings = { ...plan, formatConflicts: formats.conflicts, speedUnmatched: speed.unmatched };
+  const needsAttention =
+    plan.conflicts.length + plan.missingFromKintone.length + plan.missingFromDb.length + formats.conflicts.length + speed.unmatched.length;
   if (needsAttention) {
     console.log(`${needsAttention} item(s) need a person.`);
     const kintoneUrl = `${env.baseUrl.replace(/\/$/, '')}/k/${env.appId}/`;
-    const alert = buildSyncAlert(findings, { applied: values.apply ? fills : [], kintoneUrl });
+    const alert = buildSyncAlert(findings, {
+      applied: values.apply ? [...plan.fills, ...formats.fills] : [],
+      speedFills: values.apply ? speed.fills : [],
+      kintoneUrl,
+    });
     if (values.alert && alert) await sendAlert(alert);
     process.exitCode = 1;
   }

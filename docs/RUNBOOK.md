@@ -136,7 +136,9 @@ It also keeps **Store Format** in step with the store's concepts: all four of Pr
 
 Any of those reports makes the Modal run go red, but only after the file has been published, and they are emailed to `ALERT_RECIPIENTS`. Run `npm run sync` locally (no `--apply`) to see the same report without changing anything.
 
-Store Format lives under the Kintone field code `Radio_button`, which is what Kintone generated when the field was added by hand. Renaming that code in the field settings would be tidier; if anyone does, update `STORE_FORMAT_FIELD` in `src/directory/store-format.js` to match.
+**Speed goals for a new store.** A store whose six speed-goal fields are all blank gets the goals of its peers: Active stores with the same Store Format, the same Order Method(s) (in any order) and Speed Exceptions Granted = No. Goals are copied only when every peer has the same ones, including blanks, so a drive-thru-only store inherits blank kiosk goals if its peers have them. The new store's exception box is set to No if empty. Nothing is filled, and the alert says why, when Store Format or Order Method(s) is blank, when the new store already has an exception granted, when there is no peer yet, or when the peers disagree. A store with any goal already set is never touched. Goals are whole seconds (120 = 2:00), the same unit the dashboard uses.
+
+Store Format lives under the Kintone field code `Radio_button`, which is what Kintone generated when the field was added by hand. The other hand-added fields have generated codes too (`Check_box_0` Order Method(s), `Check_box` Speed Exceptions Granted, `Number`…`Number_4` the speed goals). They are all mapped in `src/directory/custom-fields.js`; if anyone renames a code in Kintone, change it there.
 
 ### Checking and fixing it
 

@@ -22,7 +22,7 @@ npm run schema:plan         # dry run: what setup would change in the app
 | `npm run import:validate -- file.csv` | Checks a CSV before import (`--offline`, or `--reconcile` after import) | No |
 | `npm run backup` | Exports settings and all records to `backups/` (`--settings-only` available) | No |
 | `npm run lookup -- 11101` | Runs the lookup contract for one store | No |
-| `npm run sync` | Fills blank Toast / 7shifts IDs and Store Format, and reports what it will not decide (`--apply` writes) | Only with `--apply` |
+| `npm run sync` | Fills blank Toast / 7shifts IDs, Store Format, and a new store's speed goals; reports what it will not decide (`--apply` writes) | Only with `--apply` |
 | `npm run export` | Builds the shared Excel file in `exports/` | No |
 | `npm run export -- --upload` | Builds it and replaces the SharePoint copy | SharePoint only |
 

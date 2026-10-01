@@ -2,9 +2,9 @@
 // the full platform, anything less is the limited menu. Stores with no concepts
 // recorded are left alone, since there is nothing to judge from.
 
-// Kintone generated this field code when the owner added the field by hand;
-// the form label is "Store Format". Renaming the code is a UI-only change.
-export const STORE_FORMAT_FIELD = 'Radio_button';
+import { CUSTOM_FIELDS } from './custom-fields.js';
+
+export const STORE_FORMAT_FIELD = CUSTOM_FIELDS.storeFormat;
 export const FULL_FORMAT = 'Full Food Platform';
 export const LIMITED_FORMAT = 'Healthy/Limited Menu';
 export const FULL_CONCEPTS = ['Prime', 'Lobster', 'Burger', 'Chicken'];

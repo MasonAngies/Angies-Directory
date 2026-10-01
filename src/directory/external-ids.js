@@ -1,3 +1,5 @@
+import { fieldLabel } from './custom-fields.js';
+
 // Matches directory records against the shared stores table (the nightly Toast +
 // 7shifts sync) so Toast and 7shifts IDs can be filled in for stores added by
 // hand in Kintone. Blanks are filled; a value that disagrees is only reported.
@@ -105,6 +107,16 @@ function alertItems(plan) {
       action: 'Fix whichever is wrong, the concepts or the format. Nothing was changed.',
     });
   }
+  for (const miss of plan.speedUnmatched ?? []) {
+    items.push({
+      store: miss.storeNumber,
+      issue: 'Speed goals not filled',
+      detail: miss.reason,
+      action: /^(Order Method|Store Format)/.test(miss.reason)
+        ? 'Set that field; the goals fill in the next morning.'
+        : 'Enter the goals by hand, or line its peers up so they agree.',
+    });
+  }
   for (const store of plan.missingFromKintone) {
     items.push({
       store: store.storeNumber,
@@ -124,13 +136,15 @@ function alertItems(plan) {
   return items;
 }
 
-export function buildSyncAlert(plan, { applied = [], appName = 'angies-store-directory', kintoneUrl = '' } = {}) {
+export function buildSyncAlert(plan, { applied = [], speedFills = [], appName = 'angies-store-directory', kintoneUrl = '' } = {}) {
   const items = alertItems(plan);
   if (!items.length) return null;
 
   const count = `${items.length} item${items.length === 1 ? ' needs' : 's need'} attention`;
-  const label = (field) => (field === 'Radio_button' ? 'Store Format' : field.replace(/_/g, ' '));
-  const filledLines = applied.map((fill) => `${fill.storeNumber}: ${label(fill.field)} = ${fill.value}`);
+  const filledLines = [
+    ...applied.map((fill) => `${fill.storeNumber}: ${fieldLabel(fill.field)} = ${fill.value}`),
+    ...speedFills.map((fill) => `${fill.storeNumber}: speed goals copied from ${fill.copiedFrom.join(', ')}`),
+  ];
 
   const text = [
     `The daily store directory job found ${items.length} thing${items.length === 1 ? '' : 's'} it would not decide on its own.`,
