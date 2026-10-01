@@ -76,7 +76,7 @@ of Prime, Lobster, Burger and Chicken means Full Food Platform, fewer means Heal
 Menu, and no concepts means it is left blank. Anything that disagrees with its source is
 reported and left alone, as are stores present on only one side. Those reports mark the
 Modal run failed *after* the file is published, so a data question never withholds the
-directory, and they are emailed to `ALERT_RECIPIENTS`.
+directory, and they appear in the Store directory section of the morning dashboard digest.
 
 The job refuses to publish an empty file, so a Kintone outage leaves yesterday's copy in
 place instead of blanking it for every reader. It runs on Modal (see `modal_app.py`), and
